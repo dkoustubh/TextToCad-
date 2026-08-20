@@ -1,0 +1,25 @@
+# Core Web & API Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.34.0
+pydantic>=2.10.0
+pydantic-settings>=2.7.0
+python-dotenv>=1.0.1
+websockets>=14.0
+httpx>=0.28.0
+asyncpg>=0.30.0
+redis>=5.2.0
+SQLAlchemy>=2.0.30
+
+# CAD Solid Modeling & OpenCascade Engine
+build123d>=0.11.0
+cadquery-ocp>=7.9.3.1.1
+ocp_gordon>=0.2.0
+ocpsvg>=0.6.0
+ezdxf>=1.4.0
+scipy>=1.15.0
+numpy>=2.0.0
+
+# Testing & Utilities
+pytest>=8.0.0
+anyio>=4.0.0
+requests>=2.32.0

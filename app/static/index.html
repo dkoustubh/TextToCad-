@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ATS Engineering AI — Text-to-CAD Workbench</title>
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/style.css">
+  
+  <!-- Import Map for Three.js ES Modules -->
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <!-- TOP APPLICATION TOOLBAR -->
+    <header class="top-toolbar">
+      <div class="toolbar-left">
+        <div class="brand-badge">
+          <div class="brand-icon">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <span>TEXT → CAD</span>
+        </div>
+        <div class="divider"></div>
+        <div class="project-select-wrapper">
+          <span style="color: var(--text-muted); font-size: 11px;">Project:</span>
+          <select id="projectSelect" class="project-select">
+            <option value="proj_default">Mounting Plate</option>
+          </select>
+          <span id="versionBadge" class="version-tag">v001</span>
+        </div>
+      </div>
+
+      <div class="toolbar-center">
+        <div class="status-pill" id="gemmaStatus">
+          <span class="status-dot"></span>
+          <span>Gemma Connected</span>
+        </div>
+        <div class="status-pill" id="cadKernelStatus">
+          <span class="status-dot"></span>
+          <span>CAD Kernel Ready</span>
+        </div>
+        <div class="status-pill" id="workstationStatus">
+          <span class="status-dot"></span>
+          <span id="workstationText">MECH-PC (192.168.11.150)</span>
+        </div>
+      </div>
+
+      <div class="toolbar-right">
+        <button id="themeToggleBtn" class="icon-btn" title="Toggle Theme (Light / Dark / System)">
+          <svg id="themeIconSun" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="5"></circle>
+            <line x1="12" y1="1" x2="12" y2="3"></line>
+            <line x1="12" y1="21" x2="12" y2="23"></line>
+            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+            <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+            <line x1="1" y1="12" x2="3" y2="12"></line>
+            <line x1="21" y1="12" x2="23" y2="12"></line>
+            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+            <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+          </svg>
+        </button>
+        <button id="settingsBtn" class="icon-btn" title="Workbench Settings">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"></circle>
+            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+          </svg>
+        </button>
+        <button id="fullscreenBtn" class="icon-btn" title="Toggle Fullscreen">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"></polyline>
+            <polyline points="9 21 3 21 3 15"></polyline>
+            <line x1="21" y1="3" x2="14" y2="10"></line>
+            <line x1="3" y1="21" x2="10" y2="14"></line>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- WORKBENCH 3-COLUMN BODY -->
+    <main class="workbench-body">
+      <!-- LEFT SIDEBAR: Project & Files -->
+      <aside class="sidebar left-sidebar">
+        <div class="sidebar-header">
+          <span>Project Explorer</span>
+          <button id="btnNewProject" class="btn-secondary" style="padding: 2px 8px; font-size: 11px;">+ New</button>
+        </div>
+
+        <div class="sidebar-content">
+          <!-- VERSIONS LIST -->
+          <div class="panel-section">
+            <div class="section-title">
+              <span>Versions</span>
+              <span id="versionCount" style="font-family: var(--font-mono); font-size: 10px;">1</span>
+            </div>
+            <div id="versionList" class="version-list">
+              <!-- Dynamically populated -->
+            </div>
+          </div>
+
+          <!-- FILES LIST -->
+          <div class="panel-section">
+            <div class="section-title">
+              <span>Files</span>
+            </div>
+            <div id="fileList" class="file-list">
+              <div class="file-item active" data-file="model.step">
+                <div class="file-left">
+                  <span class="file-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/></svg>
+                  </span>
+                  <span style="font-family: var(--font-mono); font-size: 11px;">model.step</span>
+                </div>
+                <span class="version-meta">ISO STEP</span>
+              </div>
+              <div class="file-item" data-file="model.stl">
+                <div class="file-left">
+                  <span class="file-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 22h20L12 2z"/></svg>
+                  </span>
+                  <span style="font-family: var(--font-mono); font-size: 11px;">model.stl</span>
+                </div>
+                <span class="version-meta">Mesh</span>
+              </div>
+              <div class="file-item" data-file="model.glb">
+                <div class="file-left">
+                  <span class="file-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                  </span>
+                  <span style="font-family: var(--font-mono); font-size: 11px;">model.glb</span>
+                </div>
+                <span class="version-meta">WebGL</span>
+              </div>
+              <div class="file-item" data-file="model.py">
+                <div class="file-left">
+                  <span class="file-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+                  </span>
+                  <span style="font-family: var(--font-mono); font-size: 11px;">model.py</span>
+                </div>
+                <span class="version-meta">Script</span>
+              </div>
+              <div class="file-item" data-file="plan.json">
+                <div class="file-left">
+                  <span class="file-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  </span>
+                  <span style="font-family: var(--font-mono); font-size: 11px;">plan.json</span>
+                </div>
+                <span class="version-meta">JSON</span>
+              </div>
+              <div class="file-item" data-file="validation.json">
+                <div class="file-left">
+                  <span class="file-icon">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                  </span>
+                  <span style="font-family: var(--font-mono); font-size: 11px;">validation.json</span>
+                </div>
+                <span class="version-meta">Report</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ACTIONS -->
+          <div class="panel-section" style="margin-top: auto;">
+            <div class="section-title">
+              <span>Actions</span>
+            </div>
+            <div class="action-grid">
+              <button id="btnNewModel" class="btn-secondary">New Model</button>
+              <button id="btnDuplicate" class="btn-secondary">Duplicate</button>
+              <button id="btnRestoreVersion" class="btn-secondary">Restore</button>
+              <button id="btnDeleteVersion" class="btn-secondary" style="color: var(--accent-red);">Delete</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      <!-- CENTER CAD VIEWPORT -->
+      <section class="viewport-container" id="viewportContainer">
+        <!-- Viewport Toolbar -->
+        <div class="viewport-toolbar">
+          <!-- View Group -->
+          <div class="toolbar-group">
+            <button id="btnFit" class="tool-btn" title="Fit Camera to Model Bounds">Fit</button>
+            <button id="btnResetCam" class="tool-btn" title="Reset Camera View">Reset</button>
+            <button id="btnToggleCam" class="tool-btn" title="Toggle Perspective / Orthographic">Perspective</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Camera Presets -->
+          <div class="toolbar-group">
+            <button class="tool-btn cam-preset" data-preset="iso">Iso</button>
+            <button class="tool-btn cam-preset" data-preset="front">Front</button>
+            <button class="tool-btn cam-preset" data-preset="back">Back</button>
+            <button class="tool-btn cam-preset" data-preset="left">Left</button>
+            <button class="tool-btn cam-preset" data-preset="right">Right</button>
+            <button class="tool-btn cam-preset" data-preset="top">Top</button>
+            <button class="tool-btn cam-preset" data-preset="bottom">Bottom</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- Display Shading Modes -->
+          <div class="toolbar-group">
+            <button class="tool-btn mode-btn active" data-mode="edges">Edges</button>
+            <button class="tool-btn mode-btn" data-mode="solid">Solid</button>
+            <button class="tool-btn mode-btn" data-mode="wireframe">Wire</button>
+            <button class="tool-btn mode-btn" data-mode="xray">X-Ray</button>
+            <button class="tool-btn mode-btn" data-mode="transparent">Glass</button>
+            <button class="tool-btn mode-btn" data-mode="section" id="btnSectionCut">Section</button>
+          </div>
+
+          <div class="divider"></div>
+
+          <!-- CAD Helpers -->
+          <div class="toolbar-group">
+            <button class="tool-btn helper-btn active" data-helper="grid">Grid</button>
+            <button class="tool-btn helper-btn active" data-helper="axes">Axes</button>
+            <button class="tool-btn helper-btn active" data-helper="plane-xy">XY</button>
+            <button class="tool-btn helper-btn" data-helper="plane-xz">XZ</button>
+            <button class="tool-btn helper-btn" data-helper="plane-yz">YZ</button>
+            <button class="tool-btn helper-btn" data-helper="bbox">BBox</button>
+          </div>
+        </div>
+
+        <!-- 3D Three.js WebGL Canvas -->
+        <canvas id="cad-canvas"></canvas>
+
+        <!-- Dynamic Axis Orientation Gizmo -->
+        <canvas id="axis-gizmo"></canvas>
+
+        <!-- Selection Info Badge -->
+        <div id="selectionBadge" class="selection-badge">
+          <div id="selectionType">FACE 0</div>
+          <div id="selectionNormal">Normal: 0, 0, 1</div>
+          <div id="selectionArea">Area: 0 mm²</div>
+        </div>
+
+        <!-- Professional CAD Empty State -->
+        <div id="viewportEmptyState" class="viewport-empty-state">
+          <div class="empty-state-card">
+            <div class="empty-title">NATURAL-LANGUAGE CAD WORKBENCH</div>
+            <div class="empty-desc">Describe any mechanical component, bracket, shaft, flange, or assembly in the prompt bar below to synthesize a 3D CAD solid.</div>
+          </div>
+        </div>
+
+        <!-- Floating Bottom Prompt / Modification Bar -->
+        <div class="prompt-bar-container">
+          <!-- Modification Context Badge -->
+          <div id="modContextBar" class="modification-context-bar">
+            <span>Iterative Modification:</span>
+            <span id="prevPromptLabel" style="color: var(--text-secondary); font-style: italic;">...</span>
+          </div>
+
+          <!-- Quick Engineering Prompt Starters -->
+          <div class="prompt-chips">
+            <span style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Examples:</span>
+            <button class="chip-btn" data-prompt="Create a conveyor side bracket, 250 mm long and 80 mm wide, 10 mm thick, with six M8 mounting holes and two 40 mm slots. Add 3 mm fillets to the outer edges.">Conveyor Bracket</button>
+            <button class="chip-btn" data-prompt="Create a shaft 200 mm long with a 30 mm diameter main section, a 25 mm diameter section on one end, a 20 mm diameter section on the other end, and a 6 mm keyway.">Stepped Shaft</button>
+            <button class="chip-btn" data-prompt="Create a mounting flange with an outer diameter of 120 mm, central bore of 50 mm, 8 equally spaced M10 holes on a 90 mm bolt circle, and a 5 mm thickness.">Flange Bolt Circle</button>
+            <button class="chip-btn" data-prompt="Create an L-shaped steel mounting bracket with two perpendicular plates, each 100 mm long, 60 mm wide and 8 mm thick, with four mounting holes on each face.">L-Bracket</button>
+            <button class="chip-btn" data-prompt="Create a pulley with a 100 mm outer diameter, 20 mm width, 30 mm bore, two side flanges and a V-groove around the circumference.">V-Groove Pulley</button>
+          </div>
+
+          <!-- Prompt Input Row -->
+          <div class="prompt-input-row">
+            <textarea
+              id="promptInput"
+              class="prompt-textarea"
+              placeholder="Describe your mechanical CAD design in natural language (e.g. dimensions, mounting holes, slots, shafts, brackets)..."
+              rows="1"
+            ></textarea>
+            <button id="btnAttachRef" class="btn-secondary" title="Attach Engineering Reference" style="height: 38px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+            </button>
+            <button id="btnClearPrompt" class="btn-secondary" title="Clear Prompt" style="height: 38px;">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <button id="btnGenerate" class="btn-generate">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              <span id="generateBtnText">GENERATE CAD</span>
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT SIDEBAR: Inspector & Metrics -->
+      <aside class="sidebar right-sidebar">
+        <div class="inspector-tabs">
+          <button class="tab-btn active" data-tab="properties">Properties</button>
+          <button class="tab-btn" data-tab="geometry">Geometry</button>
+          <button class="tab-btn" data-tab="features">Features</button>
+          <button class="tab-btn" data-tab="validation">Validation</button>
+        </div>
+
+        <div class="sidebar-content">
+          <!-- TAB 1: PROPERTIES -->
+          <div class="tab-content active" id="tab-properties">
+            <div class="panel-section">
+              <div class="section-title">Model Specifications</div>
+              <table class="prop-table">
+                <tbody>
+                  <tr><td class="prop-label">Project</td><td class="prop-val" id="propProjectName">Mounting Plate</td></tr>
+                  <tr><td class="prop-label">Version</td><td class="prop-val" id="propVersion">v001</td></tr>
+                  <tr><td class="prop-label">Units</td><td class="prop-val">mm</td></tr>
+                  <tr><td class="prop-label">Generation Time</td><td class="prop-val" id="propGenTime">-- ms</td></tr>
+                  <tr><td class="prop-label">AI Engine</td><td class="prop-val">Gemma 31B</td></tr>
+                  <tr><td class="prop-label">CAD Kernel</td><td class="prop-val">OpenCascade 7.9</td></tr>
+                  <tr><td class="prop-label">Target Tool</td><td class="prop-val" id="propTargetTool">inventor.create_box</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="panel-section">
+              <div class="section-title">Engineering Description</div>
+              <div id="propExplanation" style="font-size: 11px; color: var(--text-secondary); background: var(--bg-card); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); line-height: 1.5;">
+                Awaiting CAD generation prompt...
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 2: GEOMETRY -->
+          <div class="tab-content" id="tab-geometry">
+            <div class="panel-section">
+              <div class="section-title">Mass & Dimensions</div>
+              <table class="prop-table">
+                <tbody>
+                  <tr><td class="prop-label">Volume</td><td class="prop-val" id="geomVolume">-- mm³</td></tr>
+                  <tr><td class="prop-label">Surface Area</td><td class="prop-val" id="geomArea">-- mm²</td></tr>
+                  <tr><td class="prop-label">Bounding Box</td><td class="prop-val" id="geomBBox">-- × -- × -- mm</td></tr>
+                  <tr><td class="prop-label">Min Bounds</td><td class="prop-val" id="geomMinBounds">[0, 0, 0]</td></tr>
+                  <tr><td class="prop-label">Max Bounds</td><td class="prop-val" id="geomMaxBounds">[0, 0, 0]</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="panel-section">
+              <div class="section-title">Topology Counts</div>
+              <table class="prop-table">
+                <tbody>
+                  <tr><td class="prop-label">Solids Count</td><td class="prop-val" id="geomSolidCount">1</td></tr>
+                  <tr><td class="prop-label">Face Count</td><td class="prop-val" id="geomFaceCount">--</td></tr>
+                  <tr><td class="prop-label">Edge Count</td><td class="prop-val" id="geomEdgeCount">--</td></tr>
+                  <tr><td class="prop-label">Vertex Count</td><td class="prop-val" id="geomVertexCount">--</td></tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="panel-section" id="geomSelectionSection">
+              <div class="section-title">Selected Element</div>
+              <table class="prop-table">
+                <tbody>
+                  <tr><td class="prop-label">Element</td><td class="prop-val" id="selElemName">None</td></tr>
+                  <tr><td class="prop-label">Normal Vector</td><td class="prop-val" id="selElemNormal">--</td></tr>
+                  <tr><td class="prop-label">Face Area</td><td class="prop-val" id="selElemArea">-- mm²</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- TAB 3: FEATURES -->
+          <div class="tab-content" id="tab-features">
+            <div class="panel-section">
+              <div class="section-title">Parametric Feature Tree</div>
+              <div id="featureTreeList" style="display: flex; flex-direction: column; gap: 4px;">
+                <div class="feature-item">
+                  <span style="display: flex; align-items: center; gap: 6px;">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                    Base Prismatic Solid
+                  </span>
+                  <span class="version-meta">Primary</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 4: VALIDATION -->
+          <div class="tab-content" id="tab-validation">
+            <div class="panel-section">
+              <div class="section-title">OpenCascade B-Rep Audit</div>
+              <div style="display: flex; flex-direction: column; gap: 6px;">
+                <div class="validation-item" id="valSolid">
+                  <span class="val-icon pass">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                  <span>Valid B-Rep Solid</span>
+                </div>
+                <div class="validation-item" id="valManifold">
+                  <span class="val-icon pass">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                  <span>Closed Manifold Topology</span>
+                </div>
+                <div class="validation-item" id="valBRepCheck">
+                  <span class="val-icon pass">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                  <span>OpenCascade BRepCheck Passed</span>
+                </div>
+                <div class="validation-item" id="valStep">
+                  <span class="val-icon pass">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                  <span>STEP ISO-10303 Re-import OK</span>
+                </div>
+                <div class="validation-item" id="valStl">
+                  <span class="val-icon pass">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                  <span>Binary STL Exported</span>
+                </div>
+                <div class="validation-item" id="valGlb">
+                  <span class="val-icon pass">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                  <span>WebGL GLB Exported</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="panel-section">
+              <div class="section-title">Validation Log</div>
+              <div id="valAuditMessage" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); background: var(--bg-card); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); line-height: 1.4;">
+                Awaiting validation audit...
+              </div>
+            </div>
+          </div>
+
+          <!-- PRIMARY DOWNLOAD EXPORT BOX -->
+          <div class="download-section">
+            <button id="btnDownloadStep" class="btn-download-step">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span>Download STEP (ISO-10303)</span>
+            </button>
+            <div class="download-row">
+              <button id="btnDownloadStl" class="btn-download-sub">STL</button>
+              <button id="btnDownloadGlb" class="btn-download-sub">GLB</button>
+              <button id="btnDownloadPy" class="btn-download-sub">Python (.py)</button>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+
+    <!-- BOTTOM STATUS / LOG BAR -->
+    <footer class="bottom-status-bar">
+      <!-- 6-Stage Progress Pipeline -->
+      <div class="pipeline-tracker" id="pipelineTracker">
+        <div class="pipe-step" data-step="planning">
+          <span>1. Planning</span>
+        </div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step" data-step="generating">
+          <span>2. Generating</span>
+        </div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step" data-step="building">
+          <span>3. Building CAD</span>
+        </div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step" data-step="validating">
+          <span>4. Validating</span>
+        </div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step" data-step="exporting">
+          <span>5. Exporting</span>
+        </div>
+        <span class="pipe-arrow">→</span>
+        <div class="pipe-step" data-step="complete">
+          <span>6. Complete</span>
+        </div>
+      </div>
+
+      <!-- Real-time Metrics -->
+      <div class="status-metrics">
+        <span>Gemma: <strong id="metricGemma">-- ms</strong></span>
+        <span>CAD Build: <strong id="metricBuild">-- ms</strong></span>
+        <span>Total: <strong id="metricTotal">-- ms</strong></span>
+      </div>
+    </footer>
+  </div>
+
+  <!-- MODAL: Settings -->
+  <div class="modal-backdrop" id="settingsModal">
+    <div class="modal-dialog">
+      <div class="modal-header">
+        <span>Workbench Settings</span>
+        <button class="icon-btn close-modal" data-modal="settingsModal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="panel-section">
+          <label style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Gemma vLLM API Base</label>
+          <input type="text" id="settingVllmBase" class="prompt-textarea" style="height: 32px; min-height: 32px;" value="http://192.168.11.86:8000/v1" />
+        </div>
+        <div class="panel-section">
+          <label style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Autodesk Workstation IP</label>
+          <input type="text" id="settingWorkstationIp" class="prompt-textarea" style="height: 32px; min-height: 32px;" value="192.168.11.150" />
+        </div>
+        <div class="panel-section">
+          <label style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Default Units</label>
+          <select id="settingUnits" class="project-select" style="width: 100%;">
+            <option value="mm">Millimeters (mm)</option>
+            <option value="cm">Centimeters (cm)</option>
+            <option value="in">Inches (in)</option>
+          </select>
+        </div>
+        <div class="panel-section">
+          <label style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Grid Size (mm)</label>
+          <input type="number" id="settingGridSize" class="prompt-textarea" style="height: 32px; min-height: 32px;" value="200" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary close-modal" data-modal="settingsModal">Cancel</button>
+        <button class="btn-primary" id="btnSaveSettings">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: File / Code Viewer -->
+  <div class="modal-backdrop" id="codeModal">
+    <div class="modal-dialog" style="width: 720px;">
+      <div class="modal-header">
+        <span id="codeModalTitle">model.py</span>
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-secondary" id="btnCopyCode" style="padding: 2px 8px; font-size: 11px;">Copy</button>
+          <button class="icon-btn close-modal" data-modal="codeModal">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+      <div class="modal-body" style="padding: 0;">
+        <pre class="code-view" id="codeContent"></pre>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: New Project -->
+  <div class="modal-backdrop" id="newProjectModal">
+    <div class="modal-dialog" style="width: 400px;">
+      <div class="modal-header">
+        <span>Create New CAD Project</span>
+        <button class="icon-btn close-modal" data-modal="newProjectModal">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="panel-section">
+          <label style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Project Name</label>
+          <input type="text" id="newProjectNameInput" class="prompt-textarea" style="height: 32px; min-height: 32px;" placeholder="e.g. Spindle Mounting Plate" />
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary close-modal" data-modal="newProjectModal">Cancel</button>
+        <button class="btn-primary" id="btnConfirmCreateProject">Create Project</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Core CAD Workbench Application Script -->
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

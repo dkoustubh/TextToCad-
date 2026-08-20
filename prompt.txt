@@ -1,0 +1,668 @@
+# ATS Engineering AI — Initial Project Setup
+
+You are the lead software architect and developer for a new internal industrial AI platform called **ATS Engineering AI**.
+
+## Current Environment
+
+I currently have three machines on the same LAN:
+
+### AI/GPU Server
+
+* IP: `192.168.11.86`
+* This is the central AI server.
+* It has a 96 GB VRAM GPU.
+* vLLM is already being used.
+* Gemma is already running through vLLM.
+* Open WebUI is currently being used for testing.
+* This machine will eventually host the central ATS Engineering AI platform.
+
+### Autodesk Engineering Workstation
+
+* IP: `192.168.11.150`
+* Windows PC.
+* Autodesk applications are installed and licensed.
+* My Autodesk account is logged in as **Koustubh Deodhar**.
+* Autodesk Inventor is installed and available.
+* Other Autodesk applications are also installed.
+* This machine will execute actual Autodesk operations.
+* Do NOT move Autodesk applications or licenses to the GPU server.
+
+### Development Machine
+
+* IP: `192.168.11.94`
+* macOS.
+* This is the machine I am currently using to develop the project with Antigravity.
+* Do not assume this machine has Autodesk Inventor installed.
+* Development can initially happen here, but Autodesk-specific Windows code must eventually be tested on `192.168.11.150`.
+
+---
+
+# Overall Goal
+
+Build an internal AI engineering platform where engineers can open a lightweight browser UI and enter natural-language engineering commands.
+
+Example:
+
+> Create a cube of 3 cm.
+
+The architecture should eventually be:
+
+Engineer Browser
+↓
+ATS Engineering AI Web UI
+↓
+AI Server `192.168.11.86`
+↓
+Gemma / vLLM
+↓
+Intent / Tool Calling
+↓
+MCP Gateway
+↓
+Authenticated Autodesk Agent
+↓
+Engineer Windows PC
+↓
+Autodesk Inventor / Fusion / AutoCAD
+↓
+Actual CAD operation
+
+The AI server must NOT directly run Autodesk desktop applications.
+
+Each engineer's Autodesk application must remain on their own Windows workstation and operate using their own Autodesk license/session.
+
+---
+
+# IMPORTANT DEVELOPMENT RULE
+
+Do NOT immediately build the entire system.
+
+First inspect the environment, repository, available files, and installed dependencies.
+
+Then propose the architecture and implementation plan.
+
+Do not make destructive changes.
+
+Do not overwrite existing Open WebUI/vLLM configuration.
+
+Do not modify the GPU server unless explicitly required.
+
+Do not install packages on `192.168.11.86` or `192.168.11.150` without first explaining what will be installed and why.
+
+---
+
+# Phase 1 Objective
+
+Build the minimum viable end-to-end architecture for:
+
+> "Create a 30 × 30 × 30 mm cube in Autodesk Inventor."
+
+The target flow is:
+
+Browser
+→ AI server
+→ Gemma/vLLM
+→ structured intent/tool call
+→ Autodesk Agent
+→ Inventor API
+→ create cube
+→ result returned to browser.
+
+Do not start with Fusion, Vault, AutoCAD, assemblies, RAG, or complex CAD generation.
+
+Get this one workflow working first.
+
+---
+
+# Proposed Technology Stack
+
+Use the following unless there is a strong technical reason to change it:
+
+## Frontend
+
+* React
+* TypeScript
+* Vite
+* Tailwind CSS
+
+The UI should be lightweight and suitable for many simultaneous users.
+
+## Backend
+
+* Python
+* FastAPI
+* WebSockets
+
+FastAPI should provide:
+
+* authentication/session handling
+* chat API
+* WebSocket connection
+* job management
+* Autodesk-agent management
+* health checks
+* audit logging APIs
+
+## AI
+
+* Existing vLLM
+* Existing Gemma model
+* Do not create another LLM server.
+* Do not duplicate the model unnecessarily.
+
+The backend should communicate with the existing vLLM OpenAI-compatible API.
+
+## Queue / State
+
+Use Redis.
+
+Initially use Redis for:
+
+* job queue
+* agent state
+* WebSocket events
+* job status
+* per-machine execution queues
+
+Design the system so every Autodesk workstation can have its own execution queue.
+
+Example:
+
+queue:autodesk:192.168.11.150
+
+This is important because multiple users may eventually share the central AI server while each Autodesk workstation must execute CAD operations safely and sequentially.
+
+## Database
+
+Use PostgreSQL for persistent data:
+
+* users
+* machines
+* jobs
+* job history
+* audit logs
+* Autodesk agent registration
+* execution results
+
+## Reverse Proxy
+
+Use NGINX eventually.
+
+Architecture:
+
+Browser
+↓
+NGINX
+↓
+FastAPI
+↓
+Redis / vLLM / MCP
+
+## Monitoring
+
+Plan for:
+
+* Prometheus
+* Grafana
+
+but do not over-engineer Phase 1.
+
+---
+
+# Autodesk Agent
+
+Create a separate Windows-side component called:
+
+`ATS Autodesk Agent`
+
+This will eventually run on:
+
+`192.168.11.150`
+
+The agent is responsible for communicating with the locally installed Autodesk applications.
+
+Preferred technology:
+
+* C#
+* .NET
+* Windows
+* Autodesk Inventor API
+
+Do NOT attempt to control Inventor remotely through GUI automation, mouse simulation, keyboard simulation, AutoHotkey, Selenium, or screen scraping.
+
+Use the official Inventor API/SDK.
+
+The Autodesk Agent should eventually expose controlled operations such as:
+
+```text
+inventor.create_box
+inventor.create_sketch
+inventor.extrude
+inventor.fillet
+inventor.chamfer
+inventor.measure
+inventor.save_part
+inventor.export
+```
+
+For Phase 1, implement only:
+
+```text
+inventor.create_box
+```
+
+---
+
+# Communication Architecture
+
+The Autodesk Agent should establish an authenticated outbound connection to the central AI server.
+
+Prefer:
+
+```text
+Autodesk Agent
+        ↓
+WebSocket / secure persistent connection
+        ↓
+192.168.11.86
+```
+
+The server should NOT blindly expose privileged Autodesk APIs to the LAN.
+
+The agent should:
+
+1. Register itself.
+2. Identify the machine.
+3. Identify available Autodesk applications.
+4. Report its current status.
+5. Send heartbeat messages.
+6. Receive approved jobs.
+7. Execute one Autodesk operation at a time.
+8. Return structured results.
+9. Report errors.
+10. Disconnect safely if the Autodesk application crashes.
+
+For the prototype, the connection can use HTTP/WebSocket on the trusted LAN, but design the interfaces so HTTPS/WSS and proper authentication can be added.
+
+---
+
+# User Identity
+
+Do not hard-code:
+
+```text
+Koustubh Deodhar
+```
+
+into the application logic.
+
+Instead create a user/machine relationship.
+
+For the initial test, register:
+
+```text
+User:
+Koustubh Deodhar
+
+Machine:
+192.168.11.150
+
+Autodesk:
+Inventor
+
+Status:
+READY
+```
+
+Eventually multiple engineers will have their own machines:
+
+```text
+Koustubh → PC-150 → Inventor
+Engineer2 → PC-151 → Inventor
+Engineer3 → PC-152 → Fusion
+...
+```
+
+The central AI server must route an Autodesk command to the correct user's connected workstation.
+
+---
+
+# Natural Language → Structured Intent
+
+Do NOT let Gemma directly generate arbitrary code.
+
+For:
+
+> Create a cube of 3 cm.
+
+Gemma should produce a structured tool call similar to:
+
+```json
+{
+  "tool": "inventor.create_box",
+  "parameters": {
+    "length_mm": 30,
+    "width_mm": 30,
+    "height_mm": 30
+  }
+}
+```
+
+The backend must validate this structured request before sending it to the Autodesk Agent.
+
+The validation layer must verify:
+
+* tool exists
+* parameters exist
+* parameters have correct types
+* dimensions are valid
+* units are normalized
+* user is authorized
+* Autodesk workstation is connected
+* Autodesk application is available
+* workstation is not already executing another conflicting operation
+
+Never trust raw LLM output.
+
+---
+
+# Skills Architecture
+
+Create an initial skills structure:
+
+```text
+skills/
+├── core-engineering.md
+└── inventor/
+    └── part-design.md
+```
+
+The Inventor skill should explain:
+
+* supported operations
+* unit handling
+* tool selection
+* clarification requirements
+* validation rules
+* execution behavior
+
+Do NOT put actual security restrictions only inside Markdown.
+
+Security and validation must be enforced programmatically.
+
+---
+
+# Phase 1 UI
+
+Create a very simple engineering chat interface.
+
+It should contain:
+
+```text
+ATS Engineering AI
+
+Connected workstation:
+MECH-PC / 192.168.11.150
+
+Autodesk:
+● Inventor Connected
+
+Prompt:
+
+[ Create a cube of 3 cm                         ]
+
+[ Generate Design ]
+
+Execution:
+
+✓ Request received
+✓ AI interpreted request
+✓ Inventor selected
+✓ Workstation connected
+✓ Creating geometry...
+✓ Complete
+```
+
+The UI must receive real-time execution status through WebSockets.
+
+Do not make the UI look like a generic ChatGPT clone.
+
+Use a clean industrial engineering style.
+
+---
+
+# Phase 1 API
+
+Create APIs approximately along these lines:
+
+```text
+GET  /health
+
+GET  /api/agents
+
+GET  /api/agents/{agent_id}
+
+POST /api/chat
+
+POST /api/jobs
+
+GET  /api/jobs/{job_id}
+
+WS   /ws/{session_id}
+```
+
+The exact API design can be improved after inspecting the repository.
+
+---
+
+# Phase 1 Autodesk Agent APIs
+
+Create an abstraction such as:
+
+```text
+IAutodeskApplication
+```
+
+and:
+
+```text
+IInventorAdapter
+```
+
+The initial implementation should expose:
+
+```text
+CreateBox(lengthMm, widthMm, heightMm)
+```
+
+Keep the Autodesk-specific code isolated from the AI backend.
+
+The central server should NOT contain Inventor COM/API code.
+
+---
+
+# Important Separation
+
+Maintain this boundary:
+
+```text
+CENTRAL SERVER
+--------------------------------
+Gemma
+vLLM
+FastAPI
+Redis
+PostgreSQL
+MCP
+Skills
+Intent normalization
+Validation
+Job management
+Authentication
+Audit
+--------------------------------
+
+WINDOWS AUTODESK AGENT
+--------------------------------
+Inventor API
+Fusion API/MCP
+AutoCAD API
+Local Autodesk sessions
+CAD execution
+--------------------------------
+```
+
+This separation must remain even after the project grows.
+
+---
+
+# MCP Architecture
+
+Design an MCP gateway on the central server.
+
+Initially expose only:
+
+```text
+inventor.create_box
+```
+
+Later it can expand to:
+
+```text
+inventor.create_sketch
+inventor.extrude
+inventor.hole
+inventor.fillet
+inventor.chamfer
+inventor.measure
+inventor.save
+inventor.export
+fusion.*
+autocad.*
+vault.*
+```
+
+Do not implement all of these now.
+
+Create clean interfaces so they can be added later.
+
+---
+
+# Reliability Requirements
+
+This system will eventually be used by many engineers simultaneously.
+
+Therefore:
+
+1. Never store active jobs only in Python memory.
+2. Use Redis for job state.
+3. Use PostgreSQL for persistent job history.
+4. Give every job a unique ID.
+5. Give every Autodesk workstation a unique agent ID.
+6. Maintain per-workstation execution queues.
+7. Allow only one conflicting CAD operation at a time per workstation.
+8. Implement agent heartbeat.
+9. Detect disconnected agents.
+10. Retry only safe operations.
+11. Never blindly retry destructive CAD operations.
+12. Maintain audit logs.
+13. Never expose Autodesk credentials to the LLM.
+14. Never allow the LLM unrestricted shell access.
+15. Never allow arbitrary Python execution from an LLM tool call.
+
+---
+
+# Initial Test
+
+The final Phase 1 demonstration should be:
+
+1. Start Inventor on `192.168.11.150`.
+2. Start ATS Autodesk Agent.
+3. Agent reports:
+
+```text
+Inventor: CONNECTED
+Machine: 192.168.11.150
+User: Koustubh Deodhar
+Status: READY
+```
+
+4. Open the ATS Engineering AI UI from the development Mac at:
+
+```text
+http://192.168.11.86
+```
+
+5. Enter:
+
+```text
+Create a cube of 3 cm.
+```
+
+6. Gemma interprets it.
+
+7. Backend generates:
+
+```json
+{
+  "tool": "inventor.create_box",
+  "parameters": {
+    "length_mm": 30,
+    "width_mm": 30,
+    "height_mm": 30
+  }
+}
+```
+
+8. Validation passes.
+
+9. Job is sent to `192.168.11.150`.
+
+10. Autodesk Agent calls the Inventor API.
+
+11. Inventor creates a real:
+
+```text
+30 × 30 × 30 mm
+```
+
+solid.
+
+12. Result returns to the central server.
+
+13. Browser displays:
+
+```text
+✓ Design created successfully
+
+Application: Autodesk Inventor
+Dimensions: 30 × 30 × 30 mm
+Workstation: 192.168.11.150
+Job ID: XXXXX
+```
+
+---
+
+# Your First Task
+
+Before writing substantial code:
+
+1. Inspect the current project directory.
+2. Inspect the existing code and configuration.
+3. Check whether there is already a React/Vite project.
+4. Check whether there is already a Python/FastAPI backend.
+5. Determine how the existing vLLM/Gemma endpoint is configured.
+6. Determine whether Docker is available.
+7. Do not modify the existing Open WebUI installation.
+8. Produce a proposed repository structure.
+9. Produce the Phase 1 architecture.
+10. List the exact files you intend to create.
+11. Then implement the minimum Phase 1 skeleton.
+
+Do not proceed to complex Autodesk integration until the architecture is established.
+
+The immediate milestone is:
+
+**Browser → Gemma/vLLM → structured `inventor.create_box` command → Autodesk Agent → Inventor API → actual 30×30×30 mm cube.**
+
+Do not add Fusion, Vault, AutoCAD, RAG, multi-GPU orchestration, Kubernetes, or complex agentic workflows until this milestone works reliably.
