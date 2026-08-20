@@ -842,10 +842,11 @@ class CADWorkbench {
     }
 
     // Load 3D Model into Viewport (prefer STL for direct millimeter geometry)
-    const modelUrl = (version.stl_url && !version.stl_url.includes('None'))
+    let modelUrl = (version.stl_url && !version.stl_url.includes('None'))
       ? version.stl_url
       : (version.glb_url || `/api/projects/${this.currentProject.project_id}/versions/${version.version_label}/files/model.stl`);
-    this.loadModelFromURL(modelUrl, modelUrl.endsWith('.stl'));
+    const sep = modelUrl.includes('?') ? '&' : '?';
+    this.loadModelFromURL(`${modelUrl}${sep}t=${Date.now()}`, modelUrl.endsWith('.stl') || modelUrl.includes('.stl'));
   }
 
   /* -------------------------------------------------------------------------
@@ -868,7 +869,8 @@ class CADWorkbench {
       workstation_ip: localStorage.getItem('cad_workstation_ip') || '192.168.11.150',
       context: {
         previous_version: this.currentVersion ? this.currentVersion.version_label : null,
-        previous_prompt: this.currentVersion ? this.currentVersion.prompt : null
+        previous_prompt: this.currentVersion ? this.currentVersion.prompt : null,
+        previous_code: (this.currentVersion && this.currentVersion.plan) ? this.currentVersion.plan.python_script : null
       }
     };
 

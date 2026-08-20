@@ -25,3 +25,31 @@ def test_pipeline_cube_3cm():
     assert result.validation is not None
     assert result.validation.is_valid is True
     assert abs(result.validation.volume_mm3 - 27000.0) < 0.1
+
+def test_pipeline_iterative_modification():
+    # Step 1: Create 30mm Cube
+    res1 = asyncio.run(pipeline.run(prompt="Create a 30mm cube", job_id="test_iter_1"))
+    assert res1.success is True
+    assert abs(res1.validation.volume_mm3 - 27000.0) < 0.1
+    
+    # Step 2: Reduce length to 20mm
+    ctx1 = {
+        "previous_prompt": "Create a 30mm cube",
+        "previous_code": res1.plan.python_script
+    }
+    res2 = asyncio.run(pipeline.run(prompt="reduce the length to 20mm", job_id="test_iter_2", context=ctx1))
+    assert res2.success is True
+    # Volume of 20 x 30 x 30 = 18000 mm3
+    assert abs(res2.validation.volume_mm3 - 18000.0) < 1.0
+    assert abs(res2.validation.bounding_box.size_x - 20.0) < 0.5
+
+    # Step 3: Add a hole of 2mm
+    ctx2 = {
+        "previous_prompt": "reduce the length to 20mm",
+        "previous_code": res2.plan.python_script
+    }
+    res3 = asyncio.run(pipeline.run(prompt="add a hole of 2mm in center", job_id="test_iter_3", context=ctx2))
+    assert res3.success is True
+    # Volume should decrease by hole volume (pi * 1^2 * 30 ≈ 94.2 mm3)
+    assert res3.validation.volume_mm3 < 18000.0
+    assert res3.validation.volume_mm3 > 17800.0

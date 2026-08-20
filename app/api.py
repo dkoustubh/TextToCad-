@@ -140,14 +140,23 @@ async def generate_project_version(project_id: str, req: ChatRequest):
         if not context.get("previous_code"):
             proj = project_manager.get_project(project_id)
             if proj and proj.versions:
-                last_v = proj.versions[-1]
-                if last_v.plan and last_v.plan.python_script:
-                    context["previous_code"] = last_v.plan.python_script
-                elif last_v.validation and last_v.validation.python_path and os.path.exists(last_v.validation.python_path):
-                    with open(last_v.validation.python_path, "r", encoding="utf-8") as f:
+                prev_label = context.get("previous_version")
+                target_v = None
+                if prev_label:
+                    for v in proj.versions:
+                        if v.version_label == prev_label:
+                            target_v = v
+                            break
+                if not target_v:
+                    target_v = proj.versions[-1]
+
+                if target_v.plan and target_v.plan.python_script:
+                    context["previous_code"] = target_v.plan.python_script
+                elif target_v.validation and target_v.validation.python_path and os.path.exists(target_v.validation.python_path):
+                    with open(target_v.validation.python_path, "r", encoding="utf-8") as f:
                         context["previous_code"] = f.read()
                 if not context.get("previous_prompt"):
-                    context["previous_prompt"] = last_v.prompt
+                    context["previous_prompt"] = target_v.prompt
 
         # Run pipeline
         res = await pipeline.run(
