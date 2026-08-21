@@ -3,12 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>ATS Engineering AI — Text-to-CAD Workbench</title>
+  <title>OmniCAD — Industrial Text-to-CAD Workbench</title>
+  <link rel="icon" type="image/png" href="/static/favicon.png?v=2">
+  <link rel="shortcut icon" type="image/png" href="/static/favicon.png?v=2">
   <!-- Google Fonts: Inter & JetBrains Mono -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/style.css?v=5">
   
   <!-- Import Map for Three.js ES Modules -->
   <script type="importmap">
@@ -25,15 +27,9 @@
     <!-- TOP APPLICATION TOOLBAR -->
     <header class="top-toolbar">
       <div class="toolbar-left">
-        <div class="brand-badge">
-          <div class="brand-icon">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-              <line x1="12" y1="22.08" x2="12" y2="12"></line>
-            </svg>
-          </div>
-          <span>TEXT → CAD</span>
+        <div class="brand-badge" title="OmniCAD — Industrial Text-to-CAD Workbench">
+          <img src="/static/assets/omnicad-merged-logo-light-text.png" alt="OmniCAD" class="brand-logo-img dark-logo" />
+          <img src="/static/assets/omnicad-merged-logo.png" alt="OmniCAD" class="brand-logo-img light-logo" />
         </div>
         <div class="divider"></div>
         <div class="project-select-wrapper">
@@ -255,29 +251,13 @@
         <!-- Professional CAD Empty State -->
         <div id="viewportEmptyState" class="viewport-empty-state">
           <div class="empty-state-card">
-            <div class="empty-title">NATURAL-LANGUAGE CAD WORKBENCH</div>
+            <div class="empty-title">OMNICAD INDUSTRIAL WORKBENCH</div>
             <div class="empty-desc">Describe any mechanical component, bracket, shaft, flange, or assembly in the prompt bar below to synthesize a 3D CAD solid.</div>
           </div>
         </div>
 
-        <!-- Floating Bottom Prompt / Modification Bar -->
+        <!-- Floating Bottom Prompt Bar -->
         <div class="prompt-bar-container">
-          <!-- Modification Context Badge -->
-          <div id="modContextBar" class="modification-context-bar">
-            <span>Iterative Modification:</span>
-            <span id="prevPromptLabel" style="color: var(--text-secondary); font-style: italic;">...</span>
-          </div>
-
-          <!-- Quick Engineering Prompt Starters -->
-          <div class="prompt-chips">
-            <span style="font-size: 10px; font-weight: 700; color: var(--text-muted); text-transform: uppercase;">Examples:</span>
-            <button class="chip-btn" data-prompt="Create a conveyor side bracket, 250 mm long and 80 mm wide, 10 mm thick, with six M8 mounting holes and two 40 mm slots. Add 3 mm fillets to the outer edges.">Conveyor Bracket</button>
-            <button class="chip-btn" data-prompt="Create a shaft 200 mm long with a 30 mm diameter main section, a 25 mm diameter section on one end, a 20 mm diameter section on the other end, and a 6 mm keyway.">Stepped Shaft</button>
-            <button class="chip-btn" data-prompt="Create a mounting flange with an outer diameter of 120 mm, central bore of 50 mm, 8 equally spaced M10 holes on a 90 mm bolt circle, and a 5 mm thickness.">Flange Bolt Circle</button>
-            <button class="chip-btn" data-prompt="Create an L-shaped steel mounting bracket with two perpendicular plates, each 100 mm long, 60 mm wide and 8 mm thick, with four mounting holes on each face.">L-Bracket</button>
-            <button class="chip-btn" data-prompt="Create a pulley with a 100 mm outer diameter, 20 mm width, 30 mm bore, two side flanges and a V-groove around the circumference.">V-Groove Pulley</button>
-          </div>
-
           <!-- Prompt Input Row -->
           <div class="prompt-input-row">
             <textarea
@@ -293,7 +273,6 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
             <button id="btnGenerate" class="btn-generate">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
               <span id="generateBtnText">GENERATE CAD</span>
             </button>
           </div>
@@ -575,6 +554,6 @@
   </div>
 
   <!-- Core CAD Workbench Application Script -->
-  <script type="module" src="/static/app.js"></script>
+  <script type="module" src="/static/app.js?v=4"></script>
 </body>
 </html>

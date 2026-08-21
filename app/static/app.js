@@ -69,8 +69,6 @@ class CADWorkbench {
     this.generateBtnIcon = document.getElementById('generateBtnIcon');
     this.btnClearPrompt = document.getElementById('btnClearPrompt');
     this.btnAttachRef = document.getElementById('btnAttachRef');
-    this.modContextBar = document.getElementById('modContextBar');
-    this.prevPromptLabel = document.getElementById('prevPromptLabel');
 
     // Viewport Toolbar Buttons
     this.btnFit = document.getElementById('btnFit');
@@ -847,11 +845,11 @@ class CADWorkbench {
       }
     }
 
-    // Update Modification context bar
+    // Update prompt placeholder
     if (version.prompt) {
-      this.modContextBar.style.display = 'flex';
-      this.prevPromptLabel.innerText = `"${version.prompt}"`;
       this.promptInput.placeholder = `Modify model (e.g. 'Increase hole diameter to 10 mm', 'Add 2 mm chamfer')...`;
+    } else {
+      this.promptInput.placeholder = `Describe your mechanical CAD design in natural language (e.g. dimensions, mounting holes, slots, shafts, brackets)...`;
     }
 
     // Load 3D Model into Viewport (prefer STL for direct millimeter geometry)

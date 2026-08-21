@@ -133,24 +133,31 @@ html, body {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-weight: 700;
-  font-size: 13px;
-  letter-spacing: 0.5px;
-  color: var(--text-primary);
+  cursor: pointer;
 }
 
-.brand-icon {
-  width: 24px;
-  height: 24px;
-  background: linear-gradient(135deg, var(--accent-primary), var(--accent-cyan));
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 12px;
-  font-weight: 800;
-  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.4);
+.brand-logo-img {
+  height: 28px;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  transition: opacity 0.15s ease;
+}
+
+[data-theme="dark"] .brand-logo-img.light-logo {
+  display: none !important;
+}
+
+[data-theme="dark"] .brand-logo-img.dark-logo {
+  display: block !important;
+}
+
+[data-theme="light"] .brand-logo-img.dark-logo {
+  display: none !important;
+}
+
+[data-theme="light"] .brand-logo-img.light-logo {
+  display: block !important;
 }
 
 .divider {
@@ -571,17 +578,48 @@ html, body {
   position: absolute;
   top: 56px;
   left: 16px;
-  background: rgba(22, 25, 34, 0.9);
-  backdrop-filter: blur(8px);
-  border: 1px solid var(--accent-primary);
+  background: rgba(15, 23, 42, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1.5px solid #38bdf8;
   border-radius: 6px;
-  padding: 8px 12px;
+  padding: 9px 14px;
   font-size: 11px;
   font-family: var(--font-mono);
-  color: var(--text-primary);
-  z-index: 15;
-  box-shadow: var(--shadow-md);
+  color: #f8fafc;
+  z-index: 20;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45);
   display: none;
+  line-height: 1.6;
+}
+
+[data-theme="light"] .selection-badge {
+  background: rgba(255, 255, 255, 0.98);
+  border: 1.5px solid #0284c7;
+  color: #0f172a;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.16);
+}
+
+.selection-badge #selectionType {
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+[data-theme="light"] .selection-badge #selectionType {
+  color: #0284c7;
+}
+
+.selection-badge #selectionNormal,
+.selection-badge #selectionArea {
+  color: #e2e8f0;
+}
+
+[data-theme="light"] .selection-badge #selectionNormal,
+[data-theme="light"] .selection-badge #selectionArea {
+  color: #334155;
+  font-weight: 500;
 }
 
 /* FLOATING PROMPT BAR (Bottom of Viewport) */
@@ -601,6 +639,29 @@ html, body {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.prompt-help-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border-color);
+  animation: fadeIn 0.15s ease;
+}
+
+.prompt-help-drawer.collapsed {
+  display: none !important;
+}
+
+.btn-info-toggle {
+  transition: all 0.15s ease;
+}
+
+.btn-info-toggle.active {
+  background: var(--accent-primary) !important;
+  color: #fff !important;
+  border-color: var(--accent-primary-hover) !important;
 }
 
 [data-theme="light"] .prompt-bar-container {
