@@ -36,6 +36,7 @@ class CADWorkbench {
 
     // Theme
     this.currentTheme = localStorage.getItem('cad_workbench_theme') || 'light';
+    this.expandedProjects = new Set();
 
     this.initDOM();
     this.initThreeJS();
@@ -58,6 +59,8 @@ class CADWorkbench {
     this.themeIcon = document.getElementById('themeIcon');
     this.projectSelect = document.getElementById('projectSelect');
     this.versionBadge = document.getElementById('versionBadge');
+    this.projectTreeList = document.getElementById('projectTreeList');
+    this.projectCount = document.getElementById('projectCount');
     this.versionList = document.getElementById('versionList');
     this.versionCount = document.getElementById('versionCount');
     this.fileList = document.getElementById('fileList');
@@ -712,15 +715,17 @@ class CADWorkbench {
       if (res.ok) {
         this.projects = await res.json();
         this.renderProjectSelect();
+        
         const targetId = preferredProjectId || (this.currentProject ? this.currentProject.project_id : (this.projects[0]?.project_id));
         if (targetId && autoSelectLatest) {
           await this.selectProject(targetId);
         } else if (targetId) {
           this.currentProject = this.projects.find(p => p.project_id === targetId) || this.projects[0];
           if (this.currentProject) {
+            this.expandedProjects.add(this.currentProject.project_id);
             this.projectSelect.value = this.currentProject.project_id;
             document.getElementById('propProjectName').innerText = this.currentProject.name;
-            this.renderVersionList();
+            this.renderProjectTree();
           }
         }
       }
@@ -743,13 +748,14 @@ class CADWorkbench {
     this.currentProject = this.projects.find(p => p.project_id === projectId) || this.projects[0];
     if (!this.currentProject) return;
 
+    this.expandedProjects.add(this.currentProject.project_id);
     this.projectSelect.value = this.currentProject.project_id;
     document.getElementById('propProjectName').innerText = this.currentProject.name;
 
-    // Render Version list
-    this.renderVersionList();
+    // Render Project Tree
+    this.renderProjectTree();
 
-    // Select latest version
+    // Select latest version of this project
     if (this.currentProject.versions && this.currentProject.versions.length > 0) {
       const latest = this.currentProject.versions[this.currentProject.versions.length - 1];
       this.selectVersion(latest);
@@ -759,24 +765,101 @@ class CADWorkbench {
     }
   }
 
-  renderVersionList() {
-    this.versionList.innerHTML = '';
-    const versions = this.currentProject.versions || [];
-    this.versionCount.innerText = versions.length;
+  renderProjectTree() {
+    if (this.projectCount) {
+      this.projectCount.innerText = this.projects.length;
+    }
 
-    // Reverse list (latest at top)
-    [...versions].reverse().forEach(v => {
-      const el = document.createElement('div');
-      el.className = `version-item ${this.currentVersion && this.currentVersion.version_id === v.version_id ? 'active' : ''}`;
-      el.innerHTML = `
-        <div class="version-left">
-          <span class="version-tag">${v.version_label}</span>
-          <span class="version-prompt-text" title="${v.prompt}">${v.prompt}</span>
+    if (!this.projectTreeList) return;
+    this.projectTreeList.innerHTML = '';
+
+    if (!this.projects || this.projects.length === 0) {
+      this.projectTreeList.innerHTML = '<div class="project-versions-empty">No projects found. Click + New to create one.</div>';
+      return;
+    }
+
+    this.projects.forEach(p => {
+      const isCurrent = this.currentProject && this.currentProject.project_id === p.project_id;
+      const isExpanded = this.expandedProjects.has(p.project_id) || isCurrent;
+      const versions = p.versions || [];
+
+      const node = document.createElement('div');
+      node.className = `project-tree-node ${isCurrent ? 'active-project' : ''}`;
+      node.dataset.projectId = p.project_id;
+
+      // Folder Header
+      const header = document.createElement('div');
+      header.className = 'project-folder-header';
+      header.innerHTML = `
+        <div class="folder-left">
+          <span class="folder-chevron ${isExpanded ? 'expanded' : ''}">▶</span>
+          <span class="folder-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/>
+            </svg>
+          </span>
+          <span class="folder-name" title="${p.name}">${p.name}</span>
         </div>
-        <span class="version-meta">${v.duration_ms ? (v.duration_ms / 1000).toFixed(1) + 's' : ''}</span>
+        <div class="folder-right">
+          <span class="folder-badge" title="${versions.length} versions">${versions.length}</span>
+        </div>
       `;
-      el.addEventListener('click', () => this.selectVersion(v));
-      this.versionList.appendChild(el);
+
+      // Versions Sublist Container
+      const sublist = document.createElement('div');
+      sublist.className = 'project-versions-sublist';
+      sublist.style.display = isExpanded ? 'flex' : 'none';
+
+      if (versions.length === 0) {
+        sublist.innerHTML = '<div class="project-versions-empty">No design iterations yet</div>';
+      } else {
+        [...versions].reverse().forEach(v => {
+          const isVersionActive = isCurrent && this.currentVersion && this.currentVersion.version_id === v.version_id;
+          const vEl = document.createElement('div');
+          vEl.className = `version-item ${isVersionActive ? 'active' : ''}`;
+          vEl.dataset.versionId = v.version_id;
+          vEl.innerHTML = `
+            <div class="version-left">
+              <span class="version-tag">${v.version_label}</span>
+              <span class="version-prompt-text" title="${v.prompt || 'CAD Solid'}">${v.prompt || 'CAD Solid'}</span>
+            </div>
+            <span class="version-meta">${v.duration_ms ? (v.duration_ms / 1000).toFixed(1) + 's' : ''}</span>
+          `;
+          vEl.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!isCurrent) {
+              this.selectProject(p.project_id).then(() => {
+                this.selectVersion(v);
+              });
+            } else {
+              this.selectVersion(v);
+            }
+          });
+          sublist.appendChild(vEl);
+        });
+      }
+
+      header.addEventListener('click', () => {
+        if (!isCurrent) {
+          this.expandedProjects.add(p.project_id);
+          this.selectProject(p.project_id);
+        } else {
+          // Toggle current project expansion
+          if (this.expandedProjects.has(p.project_id)) {
+            this.expandedProjects.delete(p.project_id);
+            sublist.style.display = 'none';
+            header.querySelector('.folder-chevron')?.classList.remove('expanded');
+          } else {
+            this.expandedProjects.add(p.project_id);
+            sublist.style.display = 'flex';
+            header.querySelector('.folder-chevron')?.classList.add('expanded');
+          }
+        }
+      });
+
+      node.appendChild(header);
+      node.appendChild(sublist);
+      this.projectTreeList.appendChild(node);
     });
   }
 
@@ -787,9 +870,9 @@ class CADWorkbench {
     document.getElementById('propExplanation').innerText = version.prompt || (version.plan && version.plan.explanation) || '';
     document.getElementById('propGenTime').innerText = `${version.duration_ms || '--'} ms`;
 
-    // Highlight active in version list
-    document.querySelectorAll('.version-item').forEach(el => {
-      const isTarget = el.querySelector('.version-tag')?.innerText === version.version_label;
+    // Highlight active in version list across tree
+    document.querySelectorAll('.project-versions-sublist .version-item').forEach(el => {
+      const isTarget = el.dataset.versionId === version.version_id;
       el.classList.toggle('active', isTarget);
     });
 

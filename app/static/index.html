@@ -10,7 +10,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/static/style.css?v=9">
+  <link rel="stylesheet" href="/static/style.css?v=10">
   
   <!-- Import Map for Three.js ES Modules -->
   <script type="importmap">
@@ -97,14 +97,14 @@
         </div>
 
         <div class="sidebar-content">
-          <!-- VERSIONS LIST -->
-          <div class="panel-section">
+          <!-- PROJECTS & VERSIONS FOLDER TREE -->
+          <div class="panel-section" style="flex: 1; display: flex; flex-direction: column; min-height: 0;">
             <div class="section-title">
-              <span>Versions</span>
-              <span id="versionCount" style="font-family: var(--font-mono); font-size: 10px;">1</span>
+              <span>Projects & Drawings</span>
+              <span id="projectCount" style="font-family: var(--font-mono); font-size: 10px;">1</span>
             </div>
-            <div id="versionList" class="version-list">
-              <!-- Dynamically populated -->
+            <div id="projectTreeList" class="project-tree-list">
+              <!-- Dynamically populated folder tree -->
             </div>
           </div>
 
@@ -554,6 +554,6 @@
   </div>
 
   <!-- Core CAD Workbench Application Script -->
-  <script type="module" src="/static/app.js?v=8"></script>
+  <script type="module" src="/static/app.js?v=10"></script>
 </body>
 </html>
