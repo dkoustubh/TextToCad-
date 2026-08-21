@@ -201,28 +201,51 @@ class ParametricModifier:
 
     @staticmethod
     def clean_script(code: str) -> str:
-        lines = code.strip().split("\n")
-        cleaned_lines = []
+        if not code or not code.strip():
+            return code
+
+        c = code.strip()
+        if c.startswith("```python"):
+            c = c[len("```python"):].strip()
+        elif c.startswith("```"):
+            c = c[len("```"):].strip()
+        if c.endswith("```"):
+            c = c[:-3].strip()
+
+        # If already syntactically valid, return cleanly
+        try:
+            compile(c, "<string>", "exec")
+            return c
+        except (SyntaxError, IndentationError):
+            pass
+
+        # If compilation failed, reconstruct indentation using block logic
+        lines = c.split("\n")
+        fixed_lines = []
+        indent = 0
         for line in lines:
             s = line.strip()
             if not s:
                 continue
-            if s.startswith("import ") or s.startswith("from "):
-                continue
-            if s in ["with bd.BuildPart() as part:", "with BuildPart() as part:", "model = part.part", "model = part"]:
-                continue
-            
-            if s.startswith("with bd.BuildSketch") or s.startswith("with BuildSketch") or s.startswith("with bd.Locations") or s.startswith("with Locations") or s.startswith("try:") or s.startswith("except"):
-                cleaned_lines.append("    " + s)
-            elif s.startswith("bd.Circle") or s.startswith("Circle") or s.startswith("bd.Rectangle") or s.startswith("Rectangle") or s.startswith("bd.Slot") or s.startswith("Slot") or s.startswith("bd.fillet") or s.startswith("pass"):
-                cleaned_lines.append("        " + s)
+            if s.startswith(("elif ", "else:", "except", "finally:")):
+                lvl = max(0, indent - 1)
             else:
-                cleaned_lines.append("    " + s)
+                lvl = indent
+            fixed_lines.append("    " * lvl + s)
+            if s.endswith(":"):
+                indent = lvl + 1
 
-        header = "import math\nimport build123d as bd\n\nwith bd.BuildPart() as part:\n"
-        body = "\n".join(cleaned_lines)
-        footer = "\n\nmodel = part.part\n"
-        return header + body + footer
+        rebuilt = "\n".join(fixed_lines)
+        if "import build123d" not in rebuilt and "import bd" not in rebuilt:
+            rebuilt = "import math\nimport build123d as bd\n\n" + rebuilt
+        if "model =" not in rebuilt and "part" in rebuilt:
+            rebuilt += "\nmodel = part.part if hasattr(part, 'part') else part\n"
+
+        try:
+            compile(rebuilt, "<string>", "exec")
+            return rebuilt
+        except Exception:
+            return code
 
 class LLMClient:
     def __init__(self):

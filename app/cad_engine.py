@@ -410,7 +410,52 @@ model = part.part
 """
 
 
+    def _sanitize_script(self, code: str) -> str:
+        if not code or not code.strip():
+            return code
+        c = code.strip()
+        if c.startswith("```python"):
+            c = c[len("```python"):].strip()
+        elif c.startswith("```"):
+            c = c[len("```"):].strip()
+        if c.endswith("```"):
+            c = c[:-3].strip()
+
+        try:
+            compile(c, "<string>", "exec")
+            return c
+        except (SyntaxError, IndentationError):
+            pass
+
+        lines = c.split("\n")
+        fixed_lines = []
+        indent = 0
+        for line in lines:
+            s = line.strip()
+            if not s:
+                continue
+            if s.startswith(("elif ", "else:", "except", "finally:")):
+                lvl = max(0, indent - 1)
+            else:
+                lvl = indent
+            fixed_lines.append("    " * lvl + s)
+            if s.endswith(":"):
+                indent = lvl + 1
+
+        rebuilt = "\n".join(fixed_lines)
+        if "import build123d" not in rebuilt and "import bd" not in rebuilt:
+            rebuilt = "import math\nimport build123d as bd\n\n" + rebuilt
+        if "model =" not in rebuilt and "part" in rebuilt:
+            rebuilt += "\nmodel = part.part if hasattr(part, 'part') else part\n"
+
+        try:
+            compile(rebuilt, "<string>", "exec")
+            return rebuilt
+        except Exception:
+            return code
+
     def _execute_python_script(self, code: str) -> Any:
+        code = self._sanitize_script(code)
         def _safe_rect(width, length=None, *args, **kwargs):
             h = length if length is not None else kwargs.pop("height", width)
             loc = kwargs.pop("center", kwargs.pop("location", kwargs.pop("pos", None)))
