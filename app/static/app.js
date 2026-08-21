@@ -492,10 +492,12 @@ class CADWorkbench {
 
     if (this.currentMesh) {
       this.scene.remove(this.currentMesh);
+      if (this.currentMesh.geometry) this.currentMesh.geometry.dispose();
       this.currentMesh = null;
     }
     if (this.edgeMesh) {
       this.scene.remove(this.edgeMesh);
+      if (this.edgeMesh.geometry) this.edgeMesh.geometry.dispose();
       this.edgeMesh = null;
     }
     if (this.bboxHelper) {
@@ -521,8 +523,11 @@ class CADWorkbench {
       this.applyGeometryToScene(geom);
     };
 
+    const cleanUrl = (url || '').split('?')[0].toLowerCase();
+    const isStlFile = isStl || cleanUrl.endsWith('.stl') || url.includes('.stl');
+
     try {
-      if (isStl || url.endsWith('.stl')) {
+      if (isStlFile) {
         const loader = new STLLoader();
         loader.load(url, onGeomLoaded, undefined, (err) => {
           console.warn('STL load error:', err);
@@ -703,14 +708,22 @@ class CADWorkbench {
   /* -------------------------------------------------------------------------
      7. Project & Version Management
      ------------------------------------------------------------------------- */
-  async loadProjects() {
+  async loadProjects(preferredProjectId = null, autoSelectLatest = true) {
     try {
       const res = await fetch('/api/projects');
       if (res.ok) {
         this.projects = await res.json();
         this.renderProjectSelect();
-        if (this.projects.length > 0) {
-          this.selectProject(this.projects[0].project_id);
+        const targetId = preferredProjectId || (this.currentProject ? this.currentProject.project_id : (this.projects[0]?.project_id));
+        if (targetId && autoSelectLatest) {
+          await this.selectProject(targetId);
+        } else if (targetId) {
+          this.currentProject = this.projects.find(p => p.project_id === targetId) || this.projects[0];
+          if (this.currentProject) {
+            this.projectSelect.value = this.currentProject.project_id;
+            document.getElementById('propProjectName').innerText = this.currentProject.name;
+            this.renderVersionList();
+          }
         }
       }
     } catch (e) {
@@ -892,10 +905,11 @@ class CADWorkbench {
         document.getElementById('metricTotal').innerText = `${totalDur} ms`;
 
         // Refresh project data and select new version
-        await this.loadProjects();
+        await this.loadProjects(projectId, false);
         const p = this.projects.find(x => x.project_id === projectId);
         if (p && p.versions && p.versions.length > 0) {
-          this.selectVersion(p.versions[p.versions.length - 1]);
+          const latestVersion = p.versions[p.versions.length - 1];
+          this.selectVersion(latestVersion);
         }
 
         this.promptInput.value = '';
