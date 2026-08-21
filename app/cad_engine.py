@@ -79,12 +79,25 @@ def _patched_circle(radius=None, *args, **kwargs):
 
 def _patched_slot(width=40.0, height=8.0, *args, **kwargs):
     w = kwargs.pop("length", width)
-    h = kwargs.pop("width", height) if "length" in kwargs else height
+    if "height" in kwargs:
+        h = kwargs.pop("height")
+    elif "width" in kwargs and "length" in kwargs:
+        h = kwargs.pop("width")
+    else:
+        h = height
+
+    rotation = kwargs.pop("rotation", 0.0)
+    if w < h:
+        w, h = h, w
+        rotation = (rotation + 90.0) % 360.0
+    elif abs(w - h) < 1e-4:
+        w = h + 1e-3
+
     loc = kwargs.pop("center", kwargs.pop("location", kwargs.pop("pos", None)))
     if loc is not None:
         with _orig_locations([loc]):
-            return _orig_slot(width=w, height=h, *args, **kwargs)
-    return _orig_slot(width=w, height=h, *args, **kwargs)
+            return _orig_slot(width=w, height=h, rotation=rotation, *args, **kwargs)
+    return _orig_slot(width=w, height=h, rotation=rotation, *args, **kwargs)
 
 def _patched_cylinder(radius=10.0, height=20.0, *args, **kwargs):
     kwargs.pop("centered", None)
@@ -137,6 +150,7 @@ bd.Rectangle = _patched_rect
 bd.Circle = _patched_circle
 bd.SlotOverall = _patched_slot
 bd.Slot = _patched_slot
+bd.SlotCenterToCenter = _patched_slot
 bd.Box = _patched_box
 bd.Cylinder = _patched_cylinder
 bd.Locations = _patched_locations
