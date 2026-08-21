@@ -35,7 +35,7 @@ class CADWorkbench {
     this.clippingPlanes = [];
 
     // Theme
-    this.currentTheme = localStorage.getItem('cad_workbench_theme') || 'dark';
+    this.currentTheme = localStorage.getItem('cad_workbench_theme') || 'light';
 
     this.initDOM();
     this.initThreeJS();
@@ -1047,6 +1047,7 @@ class CADWorkbench {
   }
 
   applyTheme(theme) {
+    this.currentTheme = theme;
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('cad_workbench_theme', theme);
 
