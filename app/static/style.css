@@ -325,10 +325,40 @@ html, body {
   justify-content: space-between;
 }
 
-.version-list, .file-list {
+.version-list {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 150px;
+  overflow-y: auto;
+  padding-right: 2px;
+  scrollbar-width: thin;
+}
+
+.version-list::-webkit-scrollbar,
+.file-list::-webkit-scrollbar {
+  width: 4px;
+}
+
+.version-list::-webkit-scrollbar-thumb,
+.file-list::-webkit-scrollbar-thumb {
+  background: var(--border-color);
+  border-radius: 2px;
+}
+
+.version-list::-webkit-scrollbar-thumb:hover,
+.file-list::-webkit-scrollbar-thumb:hover {
+  background: var(--text-muted);
 }
 
 .version-item, .file-item {
