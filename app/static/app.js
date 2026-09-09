@@ -1008,6 +1008,10 @@ class CADWorkbench {
           this.selectVersion(latestVersion);
         }
 
+        if (data.inventor_file_path) {
+          this.showToast('Autodesk Inventor', `Auto-pushed & opened in Inventor (${data.inventor_file_path})`, 'success');
+        }
+
         this.promptInput.value = '';
         this.promptInput.style.height = '38px';
       } else {

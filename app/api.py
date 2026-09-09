@@ -124,6 +124,49 @@ async def get_project(project_id: str):
         raise HTTPException(status_code=404, detail=f"Project {project_id} not found")
     return proj
 
+async def auto_push_to_inventor(
+    project_id: str,
+    version_label: str,
+    step_url: str,
+    workstation_ip: Optional[str] = None,
+    session_id: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Automatically pushes a newly generated CAD model to Autodesk Inventor on 192.168.11.150,
+    saving it to Documents/OmniCAD and bringing the window to the front.
+    """
+    target_ip = workstation_ip or settings.DEFAULT_WORKSTATION_IP
+    agent_url = settings.get_inventor_agent_url(target_ip)
+    workbench_host = "192.168.11.86"
+    step_download_url = f"http://{workbench_host}:{settings.PORT}{step_url}"
+    part_name = f"{project_id}_{version_label}"
+
+    payload = {
+        "step_url": step_download_url,
+        "part_name": part_name,
+        "create_assembly": False,
+        "bring_to_front": True
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=settings.INVENTOR_AGENT_TIMEOUT) as client:
+            resp = await client.post(f"{agent_url}/api/inventor/open", json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                logger.info(f"Auto-pushed to Autodesk Inventor on {target_ip}: {data.get('file_path')}")
+                if session_id:
+                    await broadcast_event(session_id, "stage", {
+                        "stage": "inventor",
+                        "message": f"Auto-pushed to Autodesk Inventor ({part_name}.ipt)",
+                        "file_path": data.get("file_path")
+                    })
+                return data
+            else:
+                logger.warning(f"Inventor agent on {target_ip} returned {resp.status_code}: {resp.text}")
+    except Exception as e:
+        logger.warning(f"Could not auto-push to Inventor on {target_ip}: {e}")
+    return {}
+
 @app.post("/api/projects/{project_id}/versions", response_model=ChatResponse)
 async def generate_project_version(project_id: str, req: ChatRequest):
     job_id = f"cad_{uuid.uuid4().hex[:8]}"
@@ -198,13 +241,27 @@ async def generate_project_version(project_id: str, req: ChatRequest):
             duration_ms=res.duration_ms
         )
 
-        # Step 6: Complete
+        # Step 6: Automatically push & open in Autodesk Inventor on 192.168.11.150
+        inv_data = await auto_push_to_inventor(
+            project_id=project_id,
+            version_label=v_info.version_label,
+            step_url=v_info.step_url,
+            workstation_ip=workstation,
+            session_id=session_id
+        )
+        inv_dispatched = inv_data.get("success", False)
+        inv_path = inv_data.get("file_path")
+
+        # Step 7: Complete
         await broadcast_event(session_id, "stage", {
             "stage": "complete",
             "message": "CAD Solid ready for inspection",
             "version": v_info.version_label,
-            "volume_mm3": res.validation.volume_mm3 if res.validation else 0
+            "volume_mm3": res.validation.volume_mm3 if res.validation else 0,
+            "inventor_file_path": inv_path
         })
+
+        inv_msg_suffix = f" & opened in Autodesk Inventor ({inv_path})" if inv_path else ""
 
         return ChatResponse(
             success=True,
@@ -217,7 +274,7 @@ async def generate_project_version(project_id: str, req: ChatRequest):
             },
             job_id=job_id,
             workstation_ip=workstation,
-            message=f"✓ Solid CAD Model Verified & Generated ({res.plan.explanation or res.prompt})",
+            message=f"✓ Solid CAD Model Verified & Generated ({res.plan.explanation or res.prompt}){inv_msg_suffix}",
             project_id=project_id,
             version_id=v_info.version_id,
             version_num=v_info.version_num,
@@ -230,7 +287,9 @@ async def generate_project_version(project_id: str, req: ChatRequest):
             validation_url=v_info.validation_url,
             duration_ms=res.duration_ms,
             gemma_duration_ms=res.gemma_duration_ms,
-            cad_build_duration_ms=res.cad_build_duration_ms
+            cad_build_duration_ms=res.cad_build_duration_ms,
+            inventor_dispatched=inv_dispatched,
+            inventor_file_path=inv_path
         )
     finally:
         agent_router.release_lock(workstation)

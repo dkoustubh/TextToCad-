@@ -70,9 +70,9 @@ class OpenCadResponse(BaseModel):
 def get_default_save_dir() -> str:
     if IS_WINDOWS:
         user_profile = os.environ.get("USERPROFILE", "C:\\")
-        target = os.path.join(user_profile, "Documents", "OmniCAD_Models")
+        target = os.path.join(user_profile, "Documents", "OmniCAD")
     else:
-        target = os.path.expanduser("~/OmniCAD_Models")
+        target = os.path.expanduser("~/OmniCAD")
     os.makedirs(target, exist_ok=True)
     return target
 

@@ -14,6 +14,26 @@ Write-Host " Listening on: http://0.0.0.0:$Port/" -ForegroundColor Yellow
 Write-Host " Leave this window open while using the Text-to-CAD Workbench." -ForegroundColor White
 Write-Host "======================================================================" -ForegroundColor Cyan
 
+# Windows User32 P/Invoke for window focus
+try {
+    Add-Type @"
+    using System;
+    using System.Runtime.InteropServices;
+    public class Win32Window {
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool SetForegroundWindow(IntPtr hWnd);
+        
+        [DllImport("user32.dll")]
+        public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+
+        [DllImport("user32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        public static extern bool BringWindowToTop(IntPtr hWnd);
+    }
+"@ -ErrorAction SilentlyContinue
+} catch {}
+
 $listener = New-Object System.Net.HttpListener
 $prefix = "http://+:$Port/"
 $listener.Prefixes.Add($prefix)
@@ -29,7 +49,7 @@ try {
 
 Write-Host "`n[INFO] Workstation Agent is ONLINE and waiting for CAD jobs...`n" -ForegroundColor Green
 
-$saveFolder = [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "OmniCAD_Models")
+$saveFolder = [System.IO.Path]::Combine($env:USERPROFILE, "Documents", "OmniCAD")
 if (-not (Test-Path $saveFolder)) {
     New-Item -ItemType Directory -Path $saveFolder -Force | Out-Null
 }
@@ -47,6 +67,24 @@ function Get-InventorSession {
         } catch {
             return $null
         }
+    }
+}
+
+function Focus-InventorWindow([object]$inv) {
+    try {
+        $inv.Visible = $true
+        $inv.WindowState = 2 # kMaximizeWindow = 2
+        if ($null -ne $inv.ActiveView) {
+            $inv.ActiveView.Fit()
+        }
+        $hwnd = [IntPtr]$inv.MainFrameHWND
+        if ($hwnd -ne [IntPtr]::Zero) {
+            [Win32Window]::ShowWindowAsync($hwnd, 3) # 3 = SW_MAXIMIZE
+            [Win32Window]::BringWindowToTop($hwnd)
+            [Win32Window]::SetForegroundWindow($hwnd)
+        }
+    } catch {
+        Write-Warning "Focus window error: $($_.Exception.Message)"
     }
 }
 
@@ -73,27 +111,40 @@ while ($listener.IsListening) {
         # Health Check
         if ($urlPath -eq "/health" -and $method -eq "GET") {
             $inv = Get-InventorSession
-            $invConnected = ($inv -ne $null)
-            $invVer = if ($invConnected) { $inv.SoftwareVersion.DisplayName } else { "Not Running" }
-            $docCount = if ($invConnected) { $inv.Documents.Count } else { 0 }
+            $isConn = $false
+            $invVer = "Not Running"
+            $docCount = 0
 
-            $jsonObj = @{
+            if ($null -ne $inv) {
+                try {
+                    $isConn = $true
+                    $invVer = $inv.SoftwareVersion.DisplayName
+                    $docCount = $inv.Documents.Count
+                } catch {
+                    $isConn = $false
+                }
+            }
+
+            $statusObj = @{
                 status = "online"
+                engine = "PowerShell .NET HttpListener"
                 workstation = "192.168.11.150"
-                inventor_connected = $invConnected
+                inventor_connected = $isConn
                 inventor_version = $invVer
                 active_documents = $docCount
-                engine = "PowerShell .NET HttpListener"
             }
-            $jsonBytes = [System.Text.Encoding]::UTF8.GetBytes(($jsonObj | ConvertTo-Json -Compress))
+
+            $jsonStr = $statusObj | ConvertTo-Json -Compress
+            $jsonBytes = [System.Text.Encoding]::UTF8.GetBytes($jsonStr)
             $response.ContentType = "application/json"
+            $response.StatusCode = 200
             $response.ContentLength64 = $jsonBytes.Length
             $response.OutputStream.Write($jsonBytes, 0, $jsonBytes.Length)
             $response.Close()
             continue
         }
 
-        # Open in Inventor Endpoint
+        # Open or Activate in Inventor Endpoint
         if ($urlPath -eq "/api/inventor/open" -and $method -eq "POST") {
             $reader = New-Object System.IO.StreamReader($request.InputStream, $request.ContentEncoding)
             $body = $reader.ReadToEnd()
@@ -104,23 +155,27 @@ while ($listener.IsListening) {
             $createAssembly = [bool]$reqData.create_assembly
 
             Write-Host "[CAD-JOB] Received dispatch: $partName (Assembly: $createAssembly)" -ForegroundColor Yellow
-            Write-Host "          Downloading STEP: $stepUrl" -ForegroundColor Gray
 
             $localStep = [System.IO.Path]::Combine($saveFolder, "$partName.step")
-            
-            # Download STEP file
-            try {
-                $wc = New-Object System.Net.WebClient
-                $wc.DownloadFile($stepUrl, $localStep)
-            } catch {
-                Write-Host "[ERROR] Failed to download STEP: $($_.Exception.Message)" -ForegroundColor Red
-                $errObj = @{ success = $false; message = "Failed to download STEP file from $($stepUrl): $($_.Exception.Message)" }
-                $errBytes = [System.Text.Encoding]::UTF8.GetBytes(($errObj | ConvertTo-Json -Compress))
-                $response.StatusCode = 400
-                $response.ContentType = "application/json"
-                $response.OutputStream.Write($errBytes, 0, $errBytes.Length)
-                $response.Close()
-                continue
+            $iptPath = [System.IO.Path]::Combine($saveFolder, "$partName.ipt")
+            $iamPath = [System.IO.Path]::Combine($saveFolder, "$partName.iam")
+
+            # Download STEP file if URL provided
+            if (-not [string]::IsNullOrWhiteSpace($stepUrl)) {
+                Write-Host "          Downloading STEP: $stepUrl" -ForegroundColor Gray
+                try {
+                    $wc = New-Object System.Net.WebClient
+                    $wc.DownloadFile($stepUrl, $localStep)
+                } catch {
+                    Write-Host "[ERROR] Failed to download STEP: $($_.Exception.Message)" -ForegroundColor Red
+                    $errObj = @{ success = $false; message = "Failed to download STEP file from $($stepUrl): $($_.Exception.Message)" }
+                    $errBytes = [System.Text.Encoding]::UTF8.GetBytes(($errObj | ConvertTo-Json -Compress))
+                    $response.StatusCode = 400
+                    $response.ContentType = "application/json"
+                    $response.OutputStream.Write($errBytes, 0, $errBytes.Length)
+                    $response.Close()
+                    continue
+                }
             }
 
             # Connect to Inventor
@@ -137,45 +192,59 @@ while ($listener.IsListening) {
             }
 
             try {
-                Write-Host "[INVENTOR] Opening STEP solid into native Inventor workspace..." -ForegroundColor Cyan
-                $doc = $inv.Documents.Open($localStep)
-
                 if ($createAssembly) {
-                    $iptPath = [System.IO.Path]::Combine($saveFolder, "${partName}_part.ipt")
-                    $doc.SaveAs($iptPath, $false)
-                    $doc.Close($true)
+                    Write-Host "[INVENTOR] Opening/Creating native Assembly..." -ForegroundColor Cyan
+                    $targetFile = $null
+                    if (Test-Path $iamPath) {
+                        $asmDoc = $inv.Documents.Open($iamPath)
+                        $targetFile = $iamPath
+                    } else {
+                        # Open STEP and convert
+                        $doc = $inv.Documents.Open($localStep)
+                        $partIpt = [System.IO.Path]::Combine($saveFolder, "${partName}_part.ipt")
+                        $doc.SaveAs($partIpt, $false)
+                        $doc.Close($true)
 
-                    # Create Assembly (.iam) - kAssemblyDocumentObject = 12291
-                    $asmDoc = $inv.Documents.Add(12291, "", $true)
-                    $tg = $inv.TransientGeometry
-                    $matrix = $tg.CreateMatrix()
-                    $asmDoc.ComponentDefinition.Occurrences.Add($iptPath, $matrix)
+                        $asmDoc = $inv.Documents.Add(12291, "", $true)
+                        $tg = $inv.TransientGeometry
+                        $matrix = $tg.CreateMatrix()
+                        $asmDoc.ComponentDefinition.Occurrences.Add($partIpt, $matrix)
+                        $asmDoc.SaveAs($iamPath, $false)
+                        $targetFile = $iamPath
+                    }
+                    $asmDoc.Activate()
+                    Focus-InventorWindow $inv
 
-                    $iamPath = [System.IO.Path]::Combine($saveFolder, "$partName.iam")
-                    $asmDoc.SaveAs($iamPath, $false)
-                    $inv.ActiveView.Fit()
-                    $inv.Visible = $true
-
-                    Write-Host "[SUCCESS] Created Assembly: $iamPath" -ForegroundColor Green
+                    Write-Host "[SUCCESS] Active Assembly: $targetFile" -ForegroundColor Green
                     $resObj = @{
                         success = $true
-                        message = "Opened and saved native Autodesk Inventor Assembly (.iam)"
-                        file_path = $iamPath
+                        message = "Opened and activated native Autodesk Inventor Assembly (.iam)"
+                        file_path = $targetFile
                         file_type = "Assembly (.iam)"
                         inventor_version = $inv.SoftwareVersion.DisplayName
                         open_documents_count = $inv.Documents.Count
                     }
                 } else {
-                    $iptPath = [System.IO.Path]::Combine($saveFolder, "$partName.ipt")
-                    $doc.SaveAs($iptPath, $false)
-                    $inv.ActiveView.Fit()
-                    $inv.Visible = $true
+                    Write-Host "[INVENTOR] Opening/Activating native Part..." -ForegroundColor Cyan
+                    $targetFile = $null
+                    if (Test-Path $iptPath) {
+                        $doc = $inv.Documents.Open($iptPath)
+                        $targetFile = $iptPath
+                    } elseif (Test-Path $localStep) {
+                        $doc = $inv.Documents.Open($localStep)
+                        $doc.SaveAs($iptPath, $false)
+                        $targetFile = $iptPath
+                    } else {
+                        throw "Model file not found ($iptPath or $localStep)"
+                    }
+                    $doc.Activate()
+                    Focus-InventorWindow $inv
 
-                    Write-Host "[SUCCESS] Created Part: $iptPath" -ForegroundColor Green
+                    Write-Host "[SUCCESS] Active Part: $targetFile" -ForegroundColor Green
                     $resObj = @{
                         success = $true
-                        message = "Opened and saved native Autodesk Inventor Part (.ipt)"
-                        file_path = $iptPath
+                        message = "Opened and activated native Autodesk Inventor Part (.ipt)"
+                        file_path = $targetFile
                         file_type = "Part (.ipt)"
                         inventor_version = $inv.SoftwareVersion.DisplayName
                         open_documents_count = $inv.Documents.Count
@@ -188,8 +257,8 @@ while ($listener.IsListening) {
                 $response.OutputStream.Write($resBytes, 0, $resBytes.Length)
                 $response.Close()
             } catch {
-                Write-Host "[ERROR] COM execution error: $_" -ForegroundColor Red
-                $errObj = @{ success = $false; message = "Inventor COM error: $_" }
+                Write-Host "[ERROR] COM execution error: $($_.Exception.Message)" -ForegroundColor Red
+                $errObj = @{ success = $false; message = "Inventor COM error: $($_.Exception.Message)" }
                 $errBytes = [System.Text.Encoding]::UTF8.GetBytes(($errObj | ConvertTo-Json -Compress))
                 $response.StatusCode = 500
                 $response.ContentType = "application/json"
@@ -203,6 +272,6 @@ while ($listener.IsListening) {
         $response.StatusCode = 404
         $response.Close()
     } catch {
-        Write-Warning "Request handling exception: $_"
+        Write-Warning "Request handling exception: $($_.Exception.Message)"
     }
 }

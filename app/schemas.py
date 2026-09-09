@@ -97,6 +97,8 @@ class ChatResponse(BaseModel):
     duration_ms: float = 0.0
     gemma_duration_ms: float = 0.0
     cad_build_duration_ms: float = 0.0
+    inventor_dispatched: Optional[bool] = False
+    inventor_file_path: Optional[str] = None
 
 class VersionInfo(BaseModel):
     version_id: str
