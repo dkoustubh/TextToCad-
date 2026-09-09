@@ -54,6 +54,10 @@
           <span class="status-dot"></span>
           <span id="workstationText">MECH-PC (192.168.11.150)</span>
         </div>
+        <div class="status-pill" id="inventorStatusPill" title="Autodesk Inventor Live Agent (Port 8001)">
+          <span class="status-dot" id="inventorStatusDot"></span>
+          <span id="inventorStatusText">Inventor: Checking...</span>
+        </div>
       </div>
 
       <div class="toolbar-right">
@@ -233,6 +237,20 @@
             <button class="tool-btn helper-btn" data-helper="plane-yz">YZ</button>
             <button class="tool-btn helper-btn" data-helper="bbox">BBox</button>
           </div>
+
+          <div class="divider"></div>
+
+          <!-- Autodesk Inventor Live Dispatch -->
+          <div class="toolbar-group">
+            <button id="btnOpenInventorPart" class="tool-btn btn-inventor" title="Open directly in Autodesk Inventor as Part (.ipt) on 192.168.11.150">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 3v18M3 9h18"/></svg>
+              <span>Inventor .ipt</span>
+            </button>
+            <button id="btnOpenInventorAsm" class="tool-btn btn-inventor" title="Open directly in Autodesk Inventor as Assembly (.iam) on 192.168.11.150">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-right: 4px;"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+              <span>Inventor .iam</span>
+            </button>
+          </div>
         </div>
 
         <!-- 3D Three.js WebGL Canvas -->
@@ -310,6 +328,24 @@
               <div class="section-title">Engineering Description</div>
               <div id="propExplanation" style="font-size: 11px; color: var(--text-secondary); background: var(--bg-card); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); line-height: 1.5;">
                 Awaiting CAD generation prompt...
+              </div>
+            </div>
+
+            <!-- INVENTOR ACTIONS -->
+            <div class="panel-section">
+              <div class="section-title">Autodesk Inventor Live Bridge</div>
+              <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 6px;">
+                <button id="sideBtnOpenIpt" class="btn-secondary" style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px; font-weight: 600; color: #ff5252; background: rgba(229, 26, 36, 0.08); border: 1px solid rgba(229, 26, 36, 0.25);">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>
+                  <span>Open as Native Part (.ipt)</span>
+                </button>
+                <button id="sideBtnOpenIam" class="btn-secondary" style="display: flex; align-items: center; justify-content: center; gap: 6px; padding: 7px; font-weight: 600; color: #60a5fa; background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25);">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+                  <span>Open as Native Assembly (.iam)</span>
+                </button>
+                <div id="sideInventorStatusText" style="font-size: 10px; color: var(--text-muted); text-align: center;">
+                  Target: MECH-PC (192.168.11.150:8001)
+                </div>
               </div>
             </div>
           </div>
@@ -552,6 +588,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Toast Notification Container -->
+  <div id="toastContainer" class="toast-container"></div>
 
   <!-- Core CAD Workbench Application Script -->
   <script type="module" src="/static/app.js?v=11"></script>

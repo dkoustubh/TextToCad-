@@ -44,6 +44,8 @@ class CADWorkbench {
     this.initWebSocket();
     this.initTheme();
     this.loadProjects();
+    this.checkInventorStatus();
+    setInterval(() => this.checkInventorStatus(), 15000);
   }
 
   /* -------------------------------------------------------------------------
@@ -248,6 +250,19 @@ class CADWorkbench {
 
     // Window resize
     window.addEventListener('resize', () => this.onWindowResize());
+
+    // Autodesk Inventor Live Dispatch
+    const btnOpenPart = document.getElementById('btnOpenInventorPart');
+    const btnOpenAsm = document.getElementById('btnOpenInventorAsm');
+    const sideBtnPart = document.getElementById('sideBtnOpenIpt');
+    const sideBtnAsm = document.getElementById('sideBtnOpenIam');
+    const pill = document.getElementById('inventorStatusPill');
+
+    if (btnOpenPart) btnOpenPart.addEventListener('click', () => this.openInInventor(false));
+    if (btnOpenAsm) btnOpenAsm.addEventListener('click', () => this.openInInventor(true));
+    if (sideBtnPart) sideBtnPart.addEventListener('click', () => this.openInInventor(false));
+    if (sideBtnAsm) sideBtnAsm.addEventListener('click', () => this.openInInventor(true));
+    if (pill) pill.addEventListener('click', () => this.checkInventorStatus(true));
   }
 
   /* -------------------------------------------------------------------------
@@ -1221,6 +1236,109 @@ class CADWorkbench {
     this.orthoCamera.updateProjectionMatrix();
 
     this.renderer.setSize(width, height);
+  }
+
+  /* -------------------------------------------------------------------------
+     13. Autodesk Inventor Live Bridge Integration
+     ------------------------------------------------------------------------- */
+  showToast(title, message, type = 'info') {
+    const container = document.getElementById('toastContainer');
+    if (!container) return;
+
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+    toast.innerHTML = `
+      <div class="toast-header">
+        <span>${title}</span>
+        <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;" onclick="this.closest('.toast').remove()">✕</button>
+      </div>
+      <div class="toast-body">${message}</div>
+    `;
+    container.appendChild(toast);
+
+    setTimeout(() => {
+      toast.style.opacity = '0';
+      toast.style.transform = 'translateY(10px)';
+      setTimeout(() => toast.remove(), 300);
+    }, 5000);
+  }
+
+  async checkInventorStatus(showAlert = false) {
+    const dot = document.getElementById('inventorStatusDot');
+    const text = document.getElementById('inventorStatusText');
+    const sideText = document.getElementById('sideInventorStatusText');
+    const targetIp = localStorage.getItem('cad_workstation_ip') || '192.168.11.150';
+
+    try {
+      const res = await fetch(`/api/inventor/status?workstation_ip=${targetIp}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.online) {
+          if (dot) {
+            dot.style.backgroundColor = data.inventor_connected ? 'var(--accent-green)' : '#f59e0b';
+          }
+          if (text) {
+            text.innerText = data.inventor_connected ? `Inventor Active (${targetIp})` : `Agent Ready (${targetIp})`;
+          }
+          if (sideText) {
+            sideText.innerText = data.inventor_connected ? `✓ Inventor Connected on ${targetIp}` : `Agent Online (Inventor idle) on ${targetIp}`;
+            sideText.style.color = data.inventor_connected ? 'var(--accent-green)' : '#f59e0b';
+          }
+          if (showAlert) {
+            this.showToast('Autodesk Inventor Bridge', `Connected to Workstation Agent on ${targetIp}:8001 (${data.inventor_version})`, 'success');
+          }
+          return;
+        }
+      }
+    } catch (e) {
+      console.debug('Inventor status check error:', e);
+    }
+
+    if (dot) dot.style.backgroundColor = 'var(--text-muted)';
+    if (text) text.innerText = `Inventor Offline (${targetIp})`;
+    if (sideText) {
+      sideText.innerText = `Agent Offline on ${targetIp}:8001`;
+      sideText.style.color = 'var(--text-muted)';
+    }
+    if (showAlert) {
+      this.showToast('Autodesk Inventor Bridge', `Workstation agent on ${targetIp}:8001 is offline. Start run_inventor_agent.bat on the workstation.`, 'error');
+    }
+  }
+
+  async openInInventor(createAssembly = false) {
+    if (!this.currentProject || !this.currentVersion) {
+      this.showToast('Autodesk Inventor', 'Please generate or select a CAD model first.', 'error');
+      return;
+    }
+
+    const targetIp = localStorage.getItem('cad_workstation_ip') || '192.168.11.150';
+    const typeLabel = createAssembly ? 'Assembly (.iam)' : 'Part (.ipt)';
+    
+    this.showToast('Autodesk Inventor', `Dispatching model to ${targetIp} as ${typeLabel}...`, 'info');
+
+    try {
+      const res = await fetch(`/api/projects/${this.currentProject.project_id}/versions/${this.currentVersion.version_label}/inventor`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          workstation_ip: targetIp,
+          create_assembly: createAssembly,
+          part_name: `${this.currentProject.project_id}_${this.currentVersion.version_label}`,
+          bring_to_front: true
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        this.showToast('✓ Opened in Autodesk Inventor', `${data.message}\nSaved: ${data.file_path || typeLabel}`, 'success');
+        this.checkInventorStatus();
+      } else {
+        this.showToast('Inventor Dispatch Notice', data.message || 'Could not open in Inventor', 'error');
+      }
+    } catch (e) {
+      console.error('Failed to dispatch to Inventor:', e);
+      this.showToast('Inventor Dispatch Error', `Network failure contacting ${targetIp}:8001: ${e.message}`, 'error');
+    }
   }
 
   animate() {

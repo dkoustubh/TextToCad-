@@ -61,6 +61,12 @@ class ProjectManager:
             logger.error(f"Error reading project {project_id}: {e}")
             return None
 
+    def get_version(self, project_id: str, version_label: str) -> Optional[VersionInfo]:
+        project = self.get_project(project_id)
+        if not project:
+            return None
+        return next((v for v in project.versions if v.version_label == version_label), None)
+
     def create_project(self, name: str = "New Part", project_id: Optional[str] = None) -> ProjectInfo:
         p_id = project_id or f"proj_{int(time.time())}"
         p_dir = os.path.join(self.base_dir, p_id)

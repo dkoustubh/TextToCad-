@@ -123,3 +123,19 @@ class ProjectInfo(BaseModel):
     current_version: int
     versions: List[VersionInfo] = Field(default_factory=list)
 
+class InventorDispatchRequest(BaseModel):
+    workstation_ip: Optional[str] = Field(default=None, description="Target Windows workstation IP running Inventor")
+    create_assembly: bool = Field(default=False, description="True to create .iam Assembly, False to create .ipt Part")
+    part_name: Optional[str] = Field(default=None, description="Custom name for the part/assembly file")
+    bring_to_front: bool = Field(default=True, description="Bring Inventor window to foreground")
+
+class InventorDispatchResponse(BaseModel):
+    success: bool
+    message: str
+    file_path: Optional[str] = None
+    file_type: Optional[str] = None
+    workstation_ip: str
+    inventor_version: Optional[str] = None
+    open_documents_count: int = 0
+
+

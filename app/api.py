@@ -4,7 +4,8 @@ import time
 import json
 import logging
 from typing import Dict, Any, List, Optional
-from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query
+import httpx
+from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
@@ -14,7 +15,9 @@ from app.schemas import (
     ChatResponse,
     PipelineResult,
     ProjectInfo,
-    VersionInfo
+    VersionInfo,
+    InventorDispatchRequest,
+    InventorDispatchResponse
 )
 from app.pipeline import pipeline
 from app.agent_router import agent_router
@@ -269,6 +272,116 @@ async def get_version_file(project_id: str, version_label: str, file_name: str):
     ext = os.path.splitext(file_name)[1].lower()
     media_type = media_types.get(ext, "application/octet-stream")
     return FileResponse(file_path, filename=file_name, media_type=media_type)
+
+# ==========================================
+# Autodesk Inventor Workstation Integration (Port 8001)
+# ==========================================
+
+@app.get("/api/inventor/status")
+async def get_inventor_status(workstation_ip: Optional[str] = None):
+    """
+    Checks if the Autodesk Inventor Workstation Agent on 192.168.11.150:8001 is online
+    and whether Autodesk Inventor is actively running on the target PC.
+    """
+    target_ip = workstation_ip or settings.DEFAULT_WORKSTATION_IP
+    agent_url = settings.get_inventor_agent_url(target_ip)
+    
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            resp = await client.get(f"{agent_url}/health")
+            if resp.status_code == 200:
+                data = resp.json()
+                return {
+                    "online": True,
+                    "workstation_ip": target_ip,
+                    "agent_url": agent_url,
+                    "inventor_connected": data.get("inventor_connected", False),
+                    "inventor_version": data.get("inventor_version", "Unknown"),
+                    "active_documents": data.get("active_documents", 0)
+                }
+    except Exception as e:
+        logger.debug(f"Inventor agent ping error for {target_ip}: {e}")
+
+    return {
+        "online": False,
+        "workstation_ip": target_ip,
+        "agent_url": agent_url,
+        "inventor_connected": False,
+        "inventor_version": None,
+        "active_documents": 0,
+        "message": f"Workstation agent at {target_ip}:{settings.INVENTOR_AGENT_PORT} is unreachable. Ensure run_inventor_agent.bat is running."
+    }
+
+@app.post("/api/projects/{project_id}/versions/{version_label}/inventor", response_model=InventorDispatchResponse)
+async def dispatch_version_to_inventor(
+    project_id: str,
+    version_label: str,
+    req: InventorDispatchRequest,
+    request: Request
+):
+    """
+    Dispatches a verified version's STEP model to Autodesk Inventor on 192.168.11.150
+    to be converted and opened live as native .ipt (Part) or .iam (Assembly).
+    """
+    v = project_manager.get_version(project_id, version_label)
+    if not v:
+        raise HTTPException(status_code=404, detail=f"Version {version_label} not found for project {project_id}")
+
+    target_ip = req.workstation_ip or settings.DEFAULT_WORKSTATION_IP
+    agent_url = settings.get_inventor_agent_url(target_ip)
+
+    # Resolve reachable STEP download URL for the workstation
+    base_url = str(request.base_url).rstrip("/")
+    if "127.0.0.1" in base_url or "localhost" in base_url:
+        workbench_host = "192.168.11.86" if "192.168.11.86" != target_ip else "192.168.11.94"
+        step_download_url = f"http://{workbench_host}:{settings.PORT}{v.step_url}"
+    else:
+        step_download_url = f"{base_url}{v.step_url}"
+
+    part_name = req.part_name or f"{project_id}_{version_label}"
+
+    payload = {
+        "step_url": step_download_url,
+        "part_name": part_name,
+        "create_assembly": req.create_assembly,
+        "bring_to_front": req.bring_to_front
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=settings.INVENTOR_AGENT_TIMEOUT) as client:
+            resp = await client.post(f"{agent_url}/api/inventor/open", json=payload)
+            if resp.status_code == 200:
+                data = resp.json()
+                return InventorDispatchResponse(
+                    success=True,
+                    message=data.get("message", f"Successfully opened in Autodesk Inventor on {target_ip}"),
+                    file_path=data.get("file_path"),
+                    file_type=data.get("file_type", "Assembly (.iam)" if req.create_assembly else "Part (.ipt)"),
+                    workstation_ip=target_ip,
+                    inventor_version=data.get("inventor_version"),
+                    open_documents_count=data.get("open_documents_count", 1)
+                )
+            else:
+                err_detail = resp.text
+                return InventorDispatchResponse(
+                    success=False,
+                    message=f"Workstation agent returned status {resp.status_code}: {err_detail}",
+                    workstation_ip=target_ip
+                )
+    except httpx.ConnectError:
+        return InventorDispatchResponse(
+            success=False,
+            message=f"Could not connect to Workstation Agent at {agent_url}. Please launch run_inventor_agent.bat on {target_ip}.",
+            workstation_ip=target_ip
+        )
+    except Exception as e:
+        logger.error(f"Failed dispatching CAD to Inventor on {target_ip}: {e}")
+        return InventorDispatchResponse(
+            success=False,
+            message=f"Inventor dispatch failed: {str(e)}",
+            workstation_ip=target_ip
+        )
+
 
 # ==========================================
 # Legacy & Standard Chat / Generate Endpoints

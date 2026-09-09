@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
@@ -17,8 +17,14 @@ class Settings(BaseSettings):
     REDIS_URL: str = "redis://192.168.11.86:6380/0"
     DEFAULT_WORKSTATION_IP: str = "192.168.11.150"
     DEFAULT_USER_NAME: str = "Koustubh Deodhar"
+    INVENTOR_AGENT_PORT: int = 8001
+    INVENTOR_AGENT_TIMEOUT: float = 20.0
     EXPORT_DIR: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "exports"))
     STATIC_DIR: str = os.path.abspath(os.path.join(os.path.dirname(__file__), "static"))
+
+    def get_inventor_agent_url(self, workstation_ip: Optional[str] = None) -> str:
+        ip = workstation_ip or self.DEFAULT_WORKSTATION_IP
+        return f"http://{ip}:{self.INVENTOR_AGENT_PORT}"
 
     class Config:
         env_file = ".env"
