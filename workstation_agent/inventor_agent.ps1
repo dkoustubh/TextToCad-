@@ -113,8 +113,8 @@ while ($listener.IsListening) {
                 $wc = New-Object System.Net.WebClient
                 $wc.DownloadFile($stepUrl, $localStep)
             } catch {
-                Write-Host "[ERROR] Failed to download STEP: $_" -ForegroundColor Red
-                $errObj = @{ success = $false; message = "Failed to download STEP file from $stepUrl: $_" }
+                Write-Host "[ERROR] Failed to download STEP: $($_.Exception.Message)" -ForegroundColor Red
+                $errObj = @{ success = $false; message = "Failed to download STEP file from $($stepUrl): $($_.Exception.Message)" }
                 $errBytes = [System.Text.Encoding]::UTF8.GetBytes(($errObj | ConvertTo-Json -Compress))
                 $response.StatusCode = 400
                 $response.ContentType = "application/json"
