@@ -2,6 +2,7 @@ import os
 import uuid
 import time
 import json
+import asyncio
 import logging
 from typing import Dict, Any, List, Optional
 import httpx
@@ -241,16 +242,15 @@ async def generate_project_version(project_id: str, req: ChatRequest):
             duration_ms=res.duration_ms
         )
 
-        # Step 6: Automatically push & open in Autodesk Inventor on 192.168.11.150
-        inv_data = await auto_push_to_inventor(
+        # Step 6: Automatically push & open in Autodesk Inventor asynchronously in background
+        inv_path = f"C:\\Users\\koustubh\\Documents\\OmniCAD\\{project_id}_{v_info.version_label}.ipt"
+        asyncio.create_task(auto_push_to_inventor(
             project_id=project_id,
             version_label=v_info.version_label,
             step_url=v_info.step_url,
             workstation_ip=workstation,
             session_id=session_id
-        )
-        inv_dispatched = inv_data.get("success", False)
-        inv_path = inv_data.get("file_path")
+        ))
 
         # Step 7: Complete
         await broadcast_event(session_id, "stage", {
@@ -261,7 +261,7 @@ async def generate_project_version(project_id: str, req: ChatRequest):
             "inventor_file_path": inv_path
         })
 
-        inv_msg_suffix = f" & opened in Autodesk Inventor ({inv_path})" if inv_path else ""
+        inv_msg_suffix = f" & syncing to Autodesk Inventor ({inv_path})"
 
         return ChatResponse(
             success=True,
@@ -288,7 +288,7 @@ async def generate_project_version(project_id: str, req: ChatRequest):
             duration_ms=res.duration_ms,
             gemma_duration_ms=res.gemma_duration_ms,
             cad_build_duration_ms=res.cad_build_duration_ms,
-            inventor_dispatched=inv_dispatched,
+            inventor_dispatched=True,
             inventor_file_path=inv_path
         )
     finally:

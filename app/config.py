@@ -9,9 +9,7 @@ class Settings(BaseSettings):
     VLLM_MODEL: str = "google/gemma-4-31B-it"
     FALLBACK_VLLM_ENDPOINTS: List[str] = [
         "http://127.0.0.1:8000/v1",
-        "http://192.168.11.86:8000/v1",
-        "http://127.0.0.1:11434/v1",
-        "http://192.168.11.86:11434/v1"
+        "http://192.168.11.86:8000/v1"
     ]
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@192.168.11.86:5432/ats_engineering"
     REDIS_URL: str = "redis://192.168.11.86:6380/0"

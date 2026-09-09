@@ -65,9 +65,9 @@ class ParametricModifier:
         p = prompt.lower().strip()
         keywords = [
             "reduce", "increase", "decrease", "change", "modify", "update", "set",
-            "make length", "make width", "make height", "make diameter", "make size",
-            "add hole", "add a hole", "add holes", "add 4 holes", "add fillet", "add chamfer",
-            "add slot", "drill", "remove", "scale", "extend", "shorten", "widen"
+            "make", "add", "slot", "slotted", "hole", "holes", "fillet", "chamfer",
+            "drill", "bore", "pocket", "cut", "remove", "scale", "extend", "shorten",
+            "widen", "thicken", "longer", "shorter", "wider", "thicker"
         ]
         return any(k in p for k in keywords)
 
@@ -169,7 +169,28 @@ class ParametricModifier:
                 else:
                     code += f"\n{hole_snippet}\nmodel = part.part\n"
 
-        # 7. Check for fillet / round addition
+        # 7. Check for slot / slotted hole addition
+        if ("slot" in p or "slotted" in p) and nums:
+            slot_len = nums[0]
+            slot_w = nums[1] if len(nums) > 1 else 8.0
+            slot_cnt = 2 if ("two" in p or "2" in p) else (1 if ("one" in p or "1" in p) else 2)
+            slot_locs = [(-35.0, 0, 0), (35.0, 0, 0)] if slot_cnt == 2 else [(0, 0, 0)]
+            params["slot_length_mm"] = slot_len
+            params["slot_width_mm"] = slot_w
+            params["slot_count"] = slot_cnt
+            slot_snippet = f"""
+    # Feature: {slot_cnt} Slotted Adjustment Holes ({slot_len}x{slot_w} mm)
+    with bd.BuildSketch(bd.Plane.XY):
+        with bd.Locations({slot_locs}):
+            bd.SlotOverall(width={slot_len}, height={slot_w})
+    bd.extrude(amount=200.0, both=True, mode=bd.Mode.SUBTRACT)
+"""
+            if "model =" in code:
+                code = code.replace("model =", f"{slot_snippet}\nmodel =")
+            else:
+                code += f"\n{slot_snippet}\nmodel = part.part\n"
+
+        # 8. Check for fillet / round addition
         if ("fillet" in p or "round" in p) and nums:
             fillet_r = nums[0]
             params["fillet_mm"] = fillet_r
@@ -273,16 +294,13 @@ class LLMClient:
 
         p_lower = prompt.lower().strip()
         is_new_design = p_lower.startswith(("create", "generate", "build a new", "design", "make a new"))
-        is_mod = bool(
-            prev_code
-            and not is_new_design
-            and (ParametricModifier.is_modification_request(prompt) or (context and context.get("force_modification")))
-        )
+        # Any follow-up request with previous code that isn't a new design is an iterative modification
+        is_mod = bool(prev_code and not is_new_design)
 
         # FAST-PATH 1: Iterative modification of existing model via deterministic engine
         if is_mod:
             mod_code, mod_plan = ParametricModifier.modify_script(prev_code, prompt)
-            if mod_code and ("BuildPart" in mod_code or "bd." in mod_code):
+            if mod_code and mod_code != prev_code and ("BuildPart" in mod_code or "bd." in mod_code):
                 logger.info(f"Applied instant parametric modification in <1ms for: '{prompt}'")
                 return mod_plan, mod_code
 
@@ -357,7 +375,7 @@ Please analyze the error and provide a corrected, working build123d Python scrip
         raw_response = await self._call_vllm(messages)
         return self._parse_llm_cad_response(raw_response, prompt)
 
-    async def _call_vllm(self, messages: List[Dict[str, str]], timeout: float = 15.0) -> str:
+    async def _call_vllm(self, messages: List[Dict[str, str]], timeout: float = 4.0) -> str:
         for endpoint in self.candidate_endpoints:
             # Match model id with server (vLLM on 8000 uses google/gemma-4-31B-it; Ollama on 11434 uses gemma4:31b)
             ep_model = "gemma4:31b" if "11434" in endpoint else self.model
@@ -365,7 +383,7 @@ Please analyze the error and provide a corrected, working build123d Python scrip
                 "model": ep_model,
                 "messages": messages,
                 "temperature": 0.15,
-                "max_tokens": 1500
+                "max_tokens": 400
             }
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
