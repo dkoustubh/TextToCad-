@@ -279,6 +279,21 @@ class LLMClient:
             and (ParametricModifier.is_modification_request(prompt) or (context and context.get("force_modification")))
         )
 
+        # FAST-PATH 1: Iterative modification of existing model via deterministic engine
+        if is_mod:
+            mod_code, mod_plan = ParametricModifier.modify_script(prev_code, prompt)
+            if mod_code and ("BuildPart" in mod_code or "bd." in mod_code):
+                logger.info(f"Applied instant parametric modification in <1ms for: '{prompt}'")
+                return mod_plan, mod_code
+
+        # FAST-PATH 2: Standard mechanical primitives with dimensions (cube, box, cylinder, plate, bracket, gear)
+        is_standard_primitive = any(k in p_lower for k in ["cube", "box", "cylinder", "shaft", "bracket", "sprocket", "gear", "flange", "bushing", "washer", "block", "rod", "pin", "plate"])
+        if is_standard_primitive and any(c.isdigit() for c in prompt):
+            quick_code, quick_plan = self._synthesize_fallback_script(prompt)
+            if quick_code and quick_plan.shape_type != "fallback":
+                logger.info(f"Generated instant parametric model in <1ms: {quick_plan.shape_type}")
+                return quick_plan, quick_code
+
         if is_mod:
             sys_prompt = MODIFICATION_SYSTEM_PROMPT
             user_content = f"""PREVIOUS CAD DESIGN:
@@ -342,15 +357,16 @@ Please analyze the error and provide a corrected, working build123d Python scrip
         raw_response = await self._call_vllm(messages)
         return self._parse_llm_cad_response(raw_response, prompt)
 
-    async def _call_vllm(self, messages: List[Dict[str, str]], timeout: float = 30.0) -> str:
-        payload = {
-            "model": self.model,
-            "messages": messages,
-            "temperature": 0.15,
-            "max_tokens": 1500
-        }
-
+    async def _call_vllm(self, messages: List[Dict[str, str]], timeout: float = 15.0) -> str:
         for endpoint in self.candidate_endpoints:
+            # Match model id with server (vLLM on 8000 uses google/gemma-4-31B-it; Ollama on 11434 uses gemma4:31b)
+            ep_model = "gemma4:31b" if "11434" in endpoint else self.model
+            payload = {
+                "model": ep_model,
+                "messages": messages,
+                "temperature": 0.15,
+                "max_tokens": 1500
+            }
             try:
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     resp = await client.post(
