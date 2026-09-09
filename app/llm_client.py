@@ -158,8 +158,25 @@ class ParametricModifier:
                 code = re.sub(r"hole_r\s*=\s*\d+(?:\.\d+)?", f"hole_r = {hole_radius}", code)
             else:
                 # Add new hole feature
-                hole_snippet = f"""
-    # Feature: Through Hole (Ø{hole_dia} mm)
+                if "four" in p or "4" in p or "corner" in p:
+                    l_match = re.search(r"length\s*=\s*(\d+(?:\.\d+)?)", code) or re.search(r"Box\s*\(\s*(\d+(?:\.\d+)?)\s*,", code)
+                    w_match = re.search(r"width\s*=\s*(\d+(?:\.\d+)?)", code) or re.search(r"Box\s*\([^,]+,\s*(\d+(?:\.\d+)?)\s*,", code)
+                    l_val = float(l_match.group(1)) if l_match else 100.0
+                    w_val = float(w_match.group(1)) if w_match else 60.0
+                    hx = max(10.0, (l_val / 2.0) - 15.0)
+                    hy = max(10.0, (w_val / 2.0) - 12.0)
+                    params["hole_count"] = 4
+                    hole_snippet = f"""
+    # Feature: 4 Corner Through Holes (Ø{hole_dia} mm)
+    with bd.BuildSketch(bd.Plane.XY):
+        with bd.Locations([({hx}, {hy}), ({hx}, -{hy}), (-{hx}, {hy}), (-{hx}, -{hy})]):
+            bd.Circle(radius={hole_radius})
+    bd.extrude(amount=200.0, both=True, mode=bd.Mode.SUBTRACT)
+"""
+                else:
+                    params["hole_count"] = 1
+                    hole_snippet = f"""
+    # Feature: Center Through Hole (Ø{hole_dia} mm)
     with bd.BuildSketch(bd.Plane.XY):
         bd.Circle(radius={hole_radius})
     bd.extrude(amount=200.0, both=True, mode=bd.Mode.SUBTRACT)
