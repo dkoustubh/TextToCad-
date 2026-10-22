@@ -289,7 +289,10 @@ async def generate_project_version(project_id: str, req: ChatRequest):
             gemma_duration_ms=res.gemma_duration_ms,
             cad_build_duration_ms=res.cad_build_duration_ms,
             inventor_dispatched=True,
-            inventor_file_path=inv_path
+            inventor_file_path=inv_path,
+            ipt_url=v_info.ipt_url,
+            iam_url=v_info.iam_url,
+            view_url=v_info.view_url
         )
     finally:
         agent_router.release_lock(workstation)
@@ -309,15 +312,32 @@ async def delete_project_version(project_id: str, version_label: str):
     return {"success": True, "message": f"Version {version_label} deleted"}
 
 @app.get("/api/projects/{project_id}/versions/{version_label}/files/{file_name}")
-async def get_version_file(project_id: str, version_label: str, file_name: str):
+async def get_version_file(project_id: str, version_label: str, file_name: str, workstation_ip: Optional[str] = None):
     file_path = project_manager.get_version_file_path(project_id, version_label, file_name)
     if not file_path or not os.path.exists(file_path):
         # Fallback check in general exports directory
         fallback_path = os.path.join(settings.EXPORT_DIR, file_name)
         if os.path.exists(fallback_path):
             file_path = fallback_path
-        else:
-            raise HTTPException(status_code=404, detail=f"File {file_name} not found in {version_label}")
+        elif file_name.lower().endswith((".ipt", ".iam")):
+            # Attempt to retrieve native file from Autodesk Inventor workstation agent
+            target_ip = workstation_ip or settings.DEFAULT_WORKSTATION_IP
+            agent_url = settings.get_inventor_agent_url(target_ip)
+            try:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    resp = await client.get(f"{agent_url}/api/inventor/download/{file_name}")
+                    if resp.status_code == 200:
+                        v_dir = os.path.join(project_manager.base_dir, project_id, version_label)
+                        os.makedirs(v_dir, exist_ok=True)
+                        dest_path = os.path.join(v_dir, file_name)
+                        with open(dest_path, "wb") as f:
+                            f.write(resp.content)
+                        file_path = dest_path
+            except Exception as e:
+                logger.warning(f"Could not retrieve {file_name} from workstation agent {target_ip}: {e}")
+
+    if not file_path or not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail=f"File {file_name} not found in {version_label}")
 
     media_types = {
         ".step": "application/step",
@@ -326,7 +346,9 @@ async def get_version_file(project_id: str, version_label: str, file_name: str):
         ".glb": "model/gltf-binary",
         ".gltf": "model/gltf+json",
         ".py": "text/plain",
-        ".json": "application/json"
+        ".json": "application/json",
+        ".ipt": "application/octet-stream",
+        ".iam": "application/octet-stream"
     }
     ext = os.path.splitext(file_name)[1].lower()
     media_type = media_types.get(ext, "application/octet-stream")

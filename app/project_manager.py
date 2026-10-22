@@ -161,6 +161,9 @@ class ProjectManager:
             python_url=f"{base_file_url}/model.py" if os.path.exists(os.path.join(v_dir, "model.py")) else None,
             plan_url=f"{base_file_url}/plan.json",
             validation_url=f"{base_file_url}/validation.json",
+            ipt_url=f"{base_file_url}/{project_id}_{v_label}.ipt",
+            iam_url=f"{base_file_url}/{project_id}_{v_label}.iam",
+            view_url=f"/?project={project_id}&version={v_label}",
             plan=plan,
             validation=validation,
             duration_ms=duration_ms

@@ -144,6 +144,30 @@ while ($listener.IsListening) {
             continue
         }
 
+        # Download Converted CAD File Endpoint (/api/inventor/download/...)
+        if ($urlPath.StartsWith("/api/inventor/download/") -and $method -eq "GET") {
+            $fileName = [System.IO.Path]::GetFileName($urlPath.Substring(23))
+            $filePath = [System.IO.Path]::Combine($saveFolder, $fileName)
+            if (Test-Path $filePath) {
+                $fileBytes = [System.IO.File]::ReadAllBytes($filePath)
+                $response.ContentType = "application/octet-stream"
+                $response.Headers.Add("Content-Disposition", "attachment; filename=`"$fileName`"")
+                $response.StatusCode = 200
+                $response.ContentLength64 = $fileBytes.Length
+                $response.OutputStream.Write($fileBytes, 0, $fileBytes.Length)
+                $response.Close()
+                continue
+            } else {
+                $errObj = @{ success = $false; message = "File $fileName not found on workstation" }
+                $errBytes = [System.Text.Encoding]::UTF8.GetBytes(($errObj | ConvertTo-Json -Compress))
+                $response.StatusCode = 404
+                $response.ContentType = "application/json"
+                $response.OutputStream.Write($errBytes, 0, $errBytes.Length)
+                $response.Close()
+                continue
+            }
+        }
+
         # Open or Activate in Inventor Endpoint
         if ($urlPath -eq "/api/inventor/open" -and $method -eq "POST") {
             $reader = New-Object System.IO.StreamReader($request.InputStream, $request.ContentEncoding)

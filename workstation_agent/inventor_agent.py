@@ -133,6 +133,18 @@ def health_check():
     }
 
 
+@app.get("/api/inventor/download/{filename}")
+def download_inventor_file(filename: str):
+    """Serve converted .ipt or .iam files from the OmniCAD storage folder."""
+    from fastapi.responses import FileResponse
+    save_folder = get_default_save_dir()
+    sanitized = os.path.basename(filename)
+    file_path = os.path.join(save_folder, sanitized)
+    if not os.path.isfile(file_path):
+        raise HTTPException(status_code=404, detail=f"File {sanitized} not found on workstation")
+    return FileResponse(file_path, filename=sanitized, media_type="application/octet-stream")
+
+
 @app.post("/api/inventor/open", response_model=OpenCadResponse)
 def open_in_inventor(req: OpenCadRequest):
     """

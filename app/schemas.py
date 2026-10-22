@@ -99,6 +99,9 @@ class ChatResponse(BaseModel):
     cad_build_duration_ms: float = 0.0
     inventor_dispatched: Optional[bool] = False
     inventor_file_path: Optional[str] = None
+    ipt_url: Optional[str] = None
+    iam_url: Optional[str] = None
+    view_url: Optional[str] = None
 
 class VersionInfo(BaseModel):
     version_id: str
@@ -113,6 +116,9 @@ class VersionInfo(BaseModel):
     python_url: Optional[str] = None
     plan_url: Optional[str] = None
     validation_url: Optional[str] = None
+    ipt_url: Optional[str] = None
+    iam_url: Optional[str] = None
+    view_url: Optional[str] = None
     plan: Optional[CADPlan] = None
     validation: Optional[CADValidationReport] = None
     duration_ms: float = 0.0

@@ -43,7 +43,10 @@ class CADWorkbench {
     this.initGizmo();
     this.initWebSocket();
     this.initTheme();
-    this.loadProjects();
+    const urlParams = new URLSearchParams(window.location.search);
+    const qProject = urlParams.get('project');
+    const qVersion = urlParams.get('version');
+    this.loadProjects(qProject, true, qVersion);
     this.checkInventorStatus();
     setInterval(() => this.checkInventorStatus(), 15000);
   }
@@ -724,7 +727,7 @@ class CADWorkbench {
   /* -------------------------------------------------------------------------
      7. Project & Version Management
      ------------------------------------------------------------------------- */
-  async loadProjects(preferredProjectId = null, autoSelectLatest = true) {
+  async loadProjects(preferredProjectId = null, autoSelectLatest = true, targetVersionLabel = null) {
     try {
       const res = await fetch('/api/projects');
       if (res.ok) {
@@ -733,7 +736,7 @@ class CADWorkbench {
         
         const targetId = preferredProjectId || (this.currentProject ? this.currentProject.project_id : (this.projects[0]?.project_id));
         if (targetId && autoSelectLatest) {
-          await this.selectProject(targetId);
+          await this.selectProject(targetId, targetVersionLabel);
         } else if (targetId) {
           this.currentProject = this.projects.find(p => p.project_id === targetId) || this.projects[0];
           if (this.currentProject) {
@@ -759,7 +762,7 @@ class CADWorkbench {
     });
   }
 
-  async selectProject(projectId) {
+  async selectProject(projectId, targetVersionLabel = null) {
     this.currentProject = this.projects.find(p => p.project_id === projectId) || this.projects[0];
     if (!this.currentProject) return;
 
@@ -770,10 +773,16 @@ class CADWorkbench {
     // Render Project Tree
     this.renderProjectTree();
 
-    // Select latest version of this project
+    // Select targeted version or latest version of this project
     if (this.currentProject.versions && this.currentProject.versions.length > 0) {
-      const latest = this.currentProject.versions[this.currentProject.versions.length - 1];
-      this.selectVersion(latest);
+      let targetVer = null;
+      if (targetVersionLabel) {
+        targetVer = this.currentProject.versions.find(v => v.version_label === targetVersionLabel);
+      }
+      if (!targetVer) {
+        targetVer = this.currentProject.versions[this.currentProject.versions.length - 1];
+      }
+      this.selectVersion(targetVer);
     } else {
       this.emptyState.style.display = 'flex';
       this.versionBadge.innerText = 'v000';
@@ -1122,8 +1131,8 @@ class CADWorkbench {
       } catch (e) {
         console.error('File load error:', e);
       }
-    } else if (fileName.endsWith('.step')) {
-      this.downloadCurrentFile('model.step');
+    } else if (fileName.endsWith('.step') || fileName.endsWith('.ipt') || fileName.endsWith('.iam')) {
+      this.downloadCurrentFile(fileName);
     }
   }
 
