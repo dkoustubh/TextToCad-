@@ -38,6 +38,8 @@ venv.bak/
 # Unit test / coverage reports
 .pytest_cache/
 .coverage
+.cache
+scratch/
 .coverage.*
 .cache
 nosetests.xml

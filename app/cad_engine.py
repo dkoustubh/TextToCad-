@@ -204,8 +204,21 @@ class CADEngine:
             solid_obj = self._build_prb_conveyor(plan)
             py_code = self._generate_conveyor_code(plan)
         else:
-            solid_obj = self._build_box_with_holes(plan)
-            py_code = self._generate_box_code(plan)
+            # Check if llm_client can synthesize code for custom / ATS Conveyor mechanical shape types
+            try:
+                from app.llm_client import llm_client
+                prompt_key = plan.explanation or plan.shape_type
+                synth_code, _ = llm_client._synthesize_fallback_script(prompt_key)
+                if synth_code and "BuildPart" in synth_code:
+                    solid_obj = self._execute_python_script(synth_code)
+                    py_code = synth_code
+                else:
+                    solid_obj = self._build_box_with_holes(plan)
+                    py_code = self._generate_box_code(plan)
+            except Exception as e:
+                logger.warning(f"Fallback shape synthesis error for {plan.shape_type}: {e}")
+                solid_obj = self._build_box_with_holes(plan)
+                py_code = self._generate_box_code(plan)
 
         # 1. Export STEP
         bd.export_step(solid_obj, step_path)

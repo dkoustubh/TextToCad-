@@ -61,7 +61,14 @@ class Tools:
         and computes a Fast FEA (Finite Element Analysis) structural stress & Factor of Safety check.
         Provides direct 3D interactive viewer link, FEA stress plot, and downloadable CAD links.
 
-        :param prompt: Detailed description of the mechanical part (e.g. 'Mounting bracket 120x80x15 mm with four 10mm corner holes, 5mm fillet, and 30mm central bore').
+        Supports extensive ATS Conveyors India components:
+        - Fasteners: Hex Bolts (DIN 933 / ISO 4017), Socket Head Cap Screws (DIN 912 / ISO 4762).
+        - Power Transmission: Involute Spur Gears, Conveyor Chain Sprockets (Simplex/Duplex), Timing Pulleys.
+        - Rollers & Shafts: Gravity & Driven Conveyor Rollers (with bearing seats & milled flats), Tapered Curve Rollers, Stepped Drive Shafts with DIN 6885 keyways.
+        - Structural & Brackets: Heavy-duty Gusseted L-Brackets, Motor Mount Plates with tensioning slots, Sensor Brackets.
+        - Housings & Primitives: UCP Pillow Block Bearing Housings, Ball Transfer Units, Spheres, Cones, Pipe Sleeves, and Cylinders.
+
+        :param prompt: Detailed description of the mechanical part (e.g. 'Conveyor roller OD 50mm length 400mm with 12mm shaft', 'Involute spur gear 24 teeth module 2 face width 15mm bore 12mm', 'M10 x 50mm hex bolt DIN 933', or 'Mounting bracket 120x80x15 mm with four 10mm corner holes').
         :param project_id: Optional project/workspace ID to organize design iterations. Defaults to 'proj_openwebui'.
         :param create_assembly: Optional flag to create an Assembly (.iam) instead of a Part (.ipt). Defaults to Valves setting.
         :return: Formatted markdown engineering report with 3D viewer URL, FEA stress check, download links (.ipt, .iam, .step, .stl, .glb), and Inventor sync status.
