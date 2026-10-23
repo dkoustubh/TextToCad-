@@ -184,28 +184,32 @@ async def generate_project_version(project_id: str, req: ChatRequest):
         # Step 2: Generating
         await broadcast_event(session_id, "stage", {"stage": "generating", "message": "Synthesizing structured parametric CAD topology..."})
 
-        # Context enrichment from project if available
+        # Context enrichment from project if available and prompt indicates follow-up modification
         context = dict(req.context or {})
         if not context.get("previous_code"):
-            proj = project_manager.get_project(project_id)
-            if proj and proj.versions:
-                prev_label = context.get("previous_version")
-                target_v = None
-                if prev_label:
-                    for v in proj.versions:
-                        if v.version_label == prev_label:
-                            target_v = v
-                            break
-                if not target_v:
-                    target_v = proj.versions[-1]
+            from app.llm_client import classify_prompt_intent
+            _, is_mod = classify_prompt_intent(req.prompt, has_previous_code=True)
+            # Only attach previous_code if prompt is an iterative modification or previous_version was explicitly requested
+            if is_mod or context.get("previous_version"):
+                proj = project_manager.get_project(project_id)
+                if proj and proj.versions:
+                    prev_label = context.get("previous_version")
+                    target_v = None
+                    if prev_label:
+                        for v in proj.versions:
+                            if v.version_label == prev_label:
+                                target_v = v
+                                break
+                    if not target_v:
+                        target_v = proj.versions[-1]
 
-                if target_v.plan and target_v.plan.python_script:
-                    context["previous_code"] = target_v.plan.python_script
-                elif target_v.validation and target_v.validation.python_path and os.path.exists(target_v.validation.python_path):
-                    with open(target_v.validation.python_path, "r", encoding="utf-8") as f:
-                        context["previous_code"] = f.read()
-                if not context.get("previous_prompt"):
-                    context["previous_prompt"] = target_v.prompt
+                    if target_v.plan and target_v.plan.python_script:
+                        context["previous_code"] = target_v.plan.python_script
+                    elif target_v.validation and target_v.validation.python_path and os.path.exists(target_v.validation.python_path):
+                        with open(target_v.validation.python_path, "r", encoding="utf-8") as f:
+                            context["previous_code"] = f.read()
+                    if not context.get("previous_prompt"):
+                        context["previous_prompt"] = target_v.prompt
 
         # Run pipeline
         res = await pipeline.run(

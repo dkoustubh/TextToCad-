@@ -55,6 +55,86 @@ Ensure:
 3. Output strict JSON with keys: "explanation", "parameters", "shape_type", "python_code".
 """
 
+def classify_prompt_intent(prompt: str, has_previous_code: bool = False) -> Tuple[bool, bool]:
+    """
+    Precision prompt classifier for CAD design vs iterative modification.
+    Returns: (is_new_design: bool, is_modification: bool)
+    """
+    if not prompt or not prompt.strip():
+        return True, False
+
+    p = prompt.lower().strip()
+
+    # 1. Standalone mechanical components - if explicitly requested, it is a new design unless explicitly attaching
+    standalone_components = [
+        "conveyor roller", "roller", "involute", "spur gear", "gear", "sprocket",
+        "socket head", "cap screw", "hex bolt", "bolt", "screw", "fastener",
+        "l-bracket", "l bracket", "mounting bracket", "gusset bracket", "bracket",
+        "pillow block", "ucp", "bearing housing", "ball transfer", "tapered roller",
+        "drive shaft", "stepped shaft", "shaft", "flange", "cylinder", "sphere",
+        "cone", "pulley", "turntable", "bushing", "pipe sleeve", "motor mount",
+        "cube", "box", "plate", "rod", "pin", "washer"
+    ]
+    matches_standalone = any(comp in p for comp in standalone_components)
+
+    # Creation verbs / prefixes
+    creation_prefixes = (
+        "create", "generate", "build", "make", "design", "model", "draw",
+        "produce", "new", "start", "craft", "develop"
+    )
+    starts_with_create = p.startswith(creation_prefixes)
+
+    # Relative / follow-up modification phrases
+    relative_mod_phrases = [
+        "increase", "decrease", "reduce", "change the", "change its", "modify the",
+        "update the", "fillet the", "chamfer the", "make it", "resize", "thicker",
+        "thinner", "taller", "wider", "longer", "shorter", "extend the", "set the",
+        "to it", "on it", "in it", "from it", "also add", "now add", "then add",
+        "add a hole", "add holes", "drill a hole", "drill holes", "add 4 holes",
+        "add 2 holes", "add four holes", "add two holes", "add corner holes",
+        "add fillets", "add chamfers", "add a slot", "add slots", "add stiffener",
+        "add gusset"
+    ]
+    has_rel_mod = any(phrase in p for phrase in relative_mod_phrases)
+
+    if not has_previous_code:
+        return True, False
+
+    # If the user prompt specifically uses relative modification phrases on the existing model:
+    # e.g., "now add 4 holes of 8mm", "increase thickness to 15mm", "make it 20mm wider"
+    if has_rel_mod and not starts_with_create:
+        return False, True
+
+    # If the prompt starts with creation verbs and names a component, it's definitely a new design
+    # e.g., "create a conveyor roller...", "make an L-bracket..."
+    if starts_with_create and matches_standalone:
+        return True, False
+
+    # If the prompt describes a standalone mechanical component (even without "create"):
+    # e.g., "Heavy conveyor roller diameter 50mm length 400mm with 12mm shaft and milled mounting flats"
+    # e.g., "L-shaped mounting bracket 80x80x50mm with gusset"
+    # e.g., "M10x50 hex bolt DIN 933"
+    # e.g., "Involute spur gear 24 teeth module 2"
+    if matches_standalone and not has_rel_mod:
+        return True, False
+
+    # If it starts with creation verbs:
+    if starts_with_create:
+        return True, False
+
+    # If it contains relative modification phrases:
+    if has_rel_mod:
+        return False, True
+
+    # Standalone component with any creation context
+    if matches_standalone:
+        return True, False
+
+    # Default fallback when previous code exists and prompt does not mention a standalone part:
+    # e.g. "4 corner holes 8mm diameter", "length 200mm" -> treat as iterative modification
+    return False, True
+
+
 class ParametricModifier:
     """
     High-precision deterministic CAD code transformer.
@@ -62,14 +142,8 @@ class ParametricModifier:
     """
     @staticmethod
     def is_modification_request(prompt: str) -> bool:
-        p = prompt.lower().strip()
-        keywords = [
-            "reduce", "increase", "decrease", "change", "modify", "update", "set",
-            "make", "add", "slot", "slotted", "hole", "holes", "fillet", "chamfer",
-            "drill", "bore", "pocket", "cut", "remove", "scale", "extend", "shorten",
-            "widen", "thicken", "longer", "shorter", "wider", "thicker"
-        ]
-        return any(k in p for k in keywords)
+        _, is_mod = classify_prompt_intent(prompt, has_previous_code=True)
+        return is_mod
 
     @staticmethod
     def parse_units_in_text(p: str) -> List[float]:
@@ -139,9 +213,10 @@ class ParametricModifier:
             val = nums[0]
             r = val / 2.0 if ("diameter" in p or "dia" in p) else val
             params["radius_mm"] = r
-            params["diameter_mm"] = r * 2.0
-            code = re.sub(r"radius\s*=\s*\d+(?:\.\d+)?", f"radius={r}", code)
-            code = re.sub(r"Cylinder\s*\(\s*\d+(?:\.\d+)?", f"Cylinder({r}", code)
+            # ONLY modify Cylinder radius, NEVER generic Circle radius!
+            code = re.sub(r"(bd\.)?Cylinder\s*\(\s*radius\s*=\s*\d+(?:\.\d+)?", rf"\g<1>Cylinder(radius={r}", code)
+            code = re.sub(r"(bd\.)?Cylinder\s*\(\s*\d+(?:\.\d+)?", rf"\g<1>Cylinder({r}", code)
+            code = re.sub(r"(cyl_radius|cyl_r|shaft_r|shaft_radius)\s*=\s*\d+(?:\.\d+)?", rf"\g<1> = {r}", code)
 
         # 6. Check for hole / drill additions or diameter modifications
         if ("hole" in p or "drill" in p or "bore" in p) and nums:
@@ -337,21 +412,23 @@ class LLMClient:
             prev_prompt = context.get("previous_prompt", "")
             prev_code = context.get("previous_code", "")
 
-        p_lower = prompt.lower().strip()
-        is_new_design = p_lower.startswith(("create", "generate", "build a new", "design", "make a new"))
-        # Any follow-up request with previous code that isn't a new design is an iterative modification
-        is_mod = bool(prev_code and not is_new_design)
+        is_new_design, is_mod = classify_prompt_intent(prompt, has_previous_code=bool(prev_code))
+
+        # If it is classified as a new design, clear out previous code so it starts fresh
+        if is_new_design:
+            prev_code = ""
+            prev_prompt = ""
+            is_mod = False
 
         # FAST-PATH 1: Iterative modification of existing model via deterministic engine
-        if is_mod:
+        if is_mod and prev_code:
             mod_code, mod_plan = ParametricModifier.modify_script(prev_code, prompt)
             if mod_code and mod_code != prev_code and ("BuildPart" in mod_code or "bd." in mod_code):
                 logger.info(f"Applied instant parametric modification in <1ms for: '{prompt}'")
                 return mod_plan, mod_code
 
-        # FAST-PATH 2: Standard mechanical primitives with dimensions (cube, box, cylinder, plate, bracket, gear)
-        is_standard_primitive = any(k in p_lower for k in ["cube", "box", "cylinder", "shaft", "bracket", "sprocket", "gear", "flange", "bushing", "washer", "block", "rod", "pin", "plate"])
-        if is_standard_primitive and any(c.isdigit() for c in prompt):
+        # FAST-PATH 2: Standard mechanical primitives with dimensions or dedicated ATS Conveyor components
+        if is_new_design or not is_mod:
             quick_code, quick_plan = self._synthesize_fallback_script(prompt)
             if quick_code and quick_plan.shape_type != "fallback":
                 logger.info(f"Generated instant parametric model in <1ms: {quick_plan.shape_type}")

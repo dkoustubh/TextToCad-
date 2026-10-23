@@ -111,3 +111,37 @@ def test_hex_bolt_and_spur_gear_watertight():
     assert r_gear.success is True
     assert r_gear.validation.is_valid is True
     assert r_gear.validation.volume_mm3 > 0.0
+
+def test_standalone_component_not_hijacked_by_previous_code():
+    """
+    Test Case 5:
+    Ensure that when previous code exists in context (e.g. from an existing project),
+    entering a new standalone mechanical component (roller, bracket, bolt) generates
+    that exact new component cleanly instead of mutating the previous block.
+    """
+    old_box_code = """# Parametric Prismatic CAD Block
+import build123d as bd
+with bd.BuildPart() as part:
+    bd.Box(100.0, 60.0, 10.0)
+    with bd.BuildSketch(bd.Plane.XY):
+        with bd.Locations([(35.0, 21.0), (35.0, -21.0), (-35.0, 21.0), (-35.0, -21.0)]):
+            bd.Circle(radius=4.0)
+    bd.extrude(amount=20.0, both=True, mode=bd.Mode.SUBTRACT)
+model = part.part
+"""
+    ctx = {"previous_code": old_box_code, "previous_prompt": "Old block with 4 holes"}
+
+    # 1. Standalone roller prompt without 'create'
+    p_roller = "Heavy conveyor roller: Outer diameter 50mm, length 400mm. Internal shaft diameter 12mm. Include milled mounting flats on the shaft ends for securing."
+    res_roller = asyncio.run(pipeline.run(p_roller, context=ctx))
+    assert res_roller.success is True
+    assert res_roller.plan.shape_type == "conveyor_roller"
+    assert res_roller.validation.is_valid is True
+    assert res_roller.validation.bounding_box.size_z == 450.0
+
+    # 2. Standalone L-bracket prompt without 'create'
+    p_bracket = "L-shaped mounting bracket 80x80x50mm (leg lengths 80mm, height 50mm) with a wall thickness of 8mm, including a triangular stiffener gusset in the inner corner for added structural rigidity."
+    res_bracket = asyncio.run(pipeline.run(p_bracket, context=ctx))
+    assert res_bracket.success is True
+    assert res_bracket.plan.shape_type == "reinforced_l_bracket"
+    assert res_bracket.validation.is_valid is True
