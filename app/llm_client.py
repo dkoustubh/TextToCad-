@@ -635,30 +635,38 @@ length = {length}
 shaft_d = {shaft_d}
 wall_t = 3.0
 bearing_d = od * 0.7
-bearing_depth = 15.0
+bearing_depth = 14.0
 shaft_ext = 25.0
+flat_w = shaft_d * 0.75
 
 with bd.BuildPart() as part:
-    # Outer Roller Tube
+    # 1. Outer Roller Tube (centered at Z=0)
     bd.Cylinder(radius=od / 2.0, height=length)
-    # Hollow interior
-    bd.Cylinder(radius=(od / 2.0) - wall_t, height=length, mode=bd.Mode.SUBTRACT)
-    # Bearing seats at both ends
-    with bd.BuildSketch(bd.Plane.XY):
+    # 2. Hollow interior
+    bd.Cylinder(radius=(od / 2.0) - wall_t, height=length + 2.0, mode=bd.Mode.SUBTRACT)
+    # 3. Bottom bearing counterbore
+    with bd.BuildSketch(bd.Plane.XY.offset(-length / 2.0)):
         bd.Circle(radius=bearing_d / 2.0)
     bd.extrude(amount=bearing_depth, mode=bd.Mode.SUBTRACT)
-    with bd.BuildSketch(bd.Plane.XY.offset(length - bearing_depth)):
+    # 4. Top bearing counterbore
+    with bd.BuildSketch(bd.Plane.XY.offset(length / 2.0)):
         bd.Circle(radius=bearing_d / 2.0)
-    bd.extrude(amount=bearing_depth, mode=bd.Mode.SUBTRACT)
-    # Center through-shaft
-    with bd.Locations([(0, 0, -shaft_ext)]):
-        bd.Cylinder(radius=shaft_d / 2.0, height=length + 2 * shaft_ext, mode=bd.Mode.ADD)
-    # Milled flats on shaft ends
-    flat_h = shaft_d * 0.2
-    with bd.BuildSketch(bd.Plane.XZ.offset(shaft_d / 2.0 - flat_h)):
-        with bd.Locations([(0, -shaft_ext / 2.0), (0, length + shaft_ext / 2.0)]):
-            bd.Rectangle(shaft_d * 2.0, shaft_ext)
-    bd.extrude(amount=shaft_d, both=True, mode=bd.Mode.SUBTRACT)
+    bd.extrude(amount=-bearing_depth, mode=bd.Mode.SUBTRACT)
+    # 5. Continuous center through-shaft extending symmetrically at both ends
+    bd.Cylinder(radius=shaft_d / 2.0, height=length + 2.0 * shaft_ext, mode=bd.Mode.ADD)
+    # 6. Symmetrical milled flats on both shaft ends for frame mounting
+    cutter_w = shaft_d * 2.0
+    cutter_y_off = (flat_w + cutter_w) / 2.0
+    z_bot = -(length / 2.0 + shaft_ext / 2.0)
+    z_top = (length / 2.0 + shaft_ext / 2.0)
+    locs = [
+        (0, cutter_y_off, z_bot),
+        (0, -cutter_y_off, z_bot),
+        (0, cutter_y_off, z_top),
+        (0, -cutter_y_off, z_top),
+    ]
+    with bd.Locations(locs):
+        bd.Box(shaft_d * 2.0, cutter_w, shaft_ext, mode=bd.Mode.SUBTRACT)
 
 model = part.part
 """
