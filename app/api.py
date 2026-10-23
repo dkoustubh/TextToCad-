@@ -18,7 +18,9 @@ from app.schemas import (
     ProjectInfo,
     VersionInfo,
     InventorDispatchRequest,
-    InventorDispatchResponse
+    InventorDispatchResponse,
+    FEARequest,
+    FEAResponse
 )
 from app.pipeline import pipeline
 from app.agent_router import agent_router
@@ -292,7 +294,9 @@ async def generate_project_version(project_id: str, req: ChatRequest):
             inventor_file_path=inv_path,
             ipt_url=v_info.ipt_url,
             iam_url=v_info.iam_url,
-            view_url=v_info.view_url
+            view_url=v_info.view_url,
+            fea_result=v_info.fea_result,
+            fea_plot_url=v_info.fea_plot_url
         )
     finally:
         agent_router.release_lock(workstation)
@@ -348,11 +352,80 @@ async def get_version_file(project_id: str, version_label: str, file_name: str, 
         ".py": "text/plain",
         ".json": "application/json",
         ".ipt": "application/octet-stream",
-        ".iam": "application/octet-stream"
+        ".iam": "application/octet-stream",
+        ".png": "image/png"
     }
     ext = os.path.splitext(file_name)[1].lower()
     media_type = media_types.get(ext, "application/octet-stream")
     return FileResponse(file_path, filename=file_name, media_type=media_type)
+
+# ==========================================
+# Finite Element Analysis (FEA) Structural Analysis
+# ==========================================
+
+@app.get("/api/fea/materials")
+async def get_fea_materials():
+    """Lists standard engineering materials for structural FEA analysis."""
+    from app.fea_engine import MATERIALS
+    return {"materials": list(MATERIALS.values())}
+
+@app.post("/api/projects/{project_id}/versions/{version_label}/fea", response_model=FEAResponse)
+async def run_version_fea(project_id: str, version_label: str, req: FEARequest):
+    """
+    Executes on-demand 3D FEA structural analysis on a specific project version
+    with custom material, applied load (N), and boundary conditions.
+    """
+    proj = project_manager.get_project(project_id)
+    if not proj:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    v_info = next((v for v in proj.versions if v.version_label == version_label), None)
+    if not v_info:
+        raise HTTPException(status_code=404, detail=f"Version {version_label} not found")
+
+    from app.fea_engine import FEAEngine
+    v_dir = os.path.join(project_manager.base_dir, project_id, version_label)
+    os.makedirs(v_dir, exist_ok=True)
+    plot_path = os.path.join(v_dir, "fea_stress_plot.png")
+
+    l_val = getattr(v_info.plan, "length_mm", 100.0) or 100.0 if v_info.plan else 100.0
+    w_val = getattr(v_info.plan, "width_mm", 50.0) or 50.0 if v_info.plan else 50.0
+    h_val = getattr(v_info.plan, "height_mm", 10.0) or 10.0 if v_info.plan else 10.0
+    if v_info.validation and v_info.validation.bounding_box:
+        l_val = v_info.validation.bounding_box.size_x or l_val
+        w_val = v_info.validation.bounding_box.size_y or w_val
+        h_val = v_info.validation.bounding_box.size_z or h_val
+    vol_val = v_info.validation.volume_mm3 if v_info.validation else (l_val * w_val * h_val)
+    holes_val = [h.model_dump() for h in v_info.plan.holes] if (v_info.plan and getattr(v_info.plan, "holes", None)) else []
+
+    fea_data = FEAEngine.run_analysis(
+        length_mm=l_val,
+        width_mm=w_val,
+        height_mm=h_val,
+        volume_mm3=vol_val,
+        load_n=req.load_n,
+        material_id=req.material,
+        load_direction=tuple(req.load_direction),
+        fixed_boundary=req.fixed_boundary,
+        holes=holes_val,
+        output_plot_path=plot_path
+    )
+
+    with open(os.path.join(v_dir, "fea_report.json"), "w", encoding="utf-8") as f:
+        f.write(json.dumps(fea_data, indent=2))
+
+    # Update version info in project
+    v_info.fea_result = fea_data
+    v_info.fea_plot_url = f"/api/projects/{project_id}/versions/{version_label}/files/fea_stress_plot.png"
+    project_manager._save_project(proj)
+
+    return FEAResponse(
+        success=True,
+        project_id=project_id,
+        version_label=version_label,
+        fea=fea_data,
+        plot_url=v_info.fea_plot_url
+    )
 
 # ==========================================
 # Autodesk Inventor Workstation Integration (Port 8001)

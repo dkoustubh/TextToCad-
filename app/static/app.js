@@ -266,6 +266,10 @@ class CADWorkbench {
     if (sideBtnPart) sideBtnPart.addEventListener('click', () => this.openInInventor(false));
     if (sideBtnAsm) sideBtnAsm.addEventListener('click', () => this.openInInventor(true));
     if (pill) pill.addEventListener('click', () => this.checkInventorStatus(true));
+
+    // Fast FEA Simulation trigger
+    const btnRunFEA = document.getElementById('btnRunFEA');
+    if (btnRunFEA) btnRunFEA.addEventListener('click', () => this.runCustomFEA());
   }
 
   /* -------------------------------------------------------------------------
@@ -959,12 +963,127 @@ class CADWorkbench {
       this.promptInput.placeholder = `Describe your mechanical CAD design in natural language (e.g. dimensions, mounting holes, slots, shafts, brackets)...`;
     }
 
+    // Populate FEA Stress Tab
+    this.populateFEA(version.fea_result, version.fea_plot_url);
+
     // Load 3D Model into Viewport (prefer STL for direct millimeter geometry)
     let modelUrl = (version.stl_url && !version.stl_url.includes('None'))
       ? version.stl_url
       : (version.glb_url || `/api/projects/${this.currentProject.project_id}/versions/${version.version_label}/files/model.stl`);
     const sep = modelUrl.includes('?') ? '&' : '?';
     this.loadModelFromURL(`${modelUrl}${sep}t=${Date.now()}`, modelUrl.endsWith('.stl') || modelUrl.includes('.stl'));
+  }
+
+  populateFEA(fea, plotUrl = null) {
+    if (!fea) {
+      const stressEl = document.getElementById('feaMaxStress');
+      if (stressEl) stressEl.innerText = '-- MPa';
+      const yieldEl = document.getElementById('feaYieldStrength');
+      if (yieldEl) yieldEl.innerText = '-- MPa';
+      const deflEl = document.getElementById('feaMaxDeflection');
+      if (deflEl) deflEl.innerText = '-- mm';
+      const ktEl = document.getElementById('feaKt');
+      if (ktEl) ktEl.innerText = '--';
+      const massEl = document.getElementById('feaMass');
+      if (massEl) massEl.innerText = '-- kg';
+      const fosEl = document.getElementById('feaFoS');
+      if (fosEl) {
+        fosEl.innerText = '--';
+        fosEl.style.color = 'var(--accent-green)';
+      }
+      const recEl = document.getElementById('feaRecommendation');
+      if (recEl) recEl.innerText = 'Awaiting structural FEA analysis...';
+      const img = document.getElementById('feaPlotImg');
+      if (img) img.style.display = 'none';
+      const placeholder = document.getElementById('feaPlotPlaceholder');
+      if (placeholder) placeholder.style.display = 'block';
+      return;
+    }
+
+    const stressEl = document.getElementById('feaMaxStress');
+    if (stressEl) stressEl.innerText = `${fea.von_mises_stress_mpa} MPa`;
+    const yieldEl = document.getElementById('feaYieldStrength');
+    if (yieldEl) yieldEl.innerText = `${fea.yield_strength_mpa} MPa`;
+    const deflEl = document.getElementById('feaMaxDeflection');
+    if (deflEl) deflEl.innerText = `${fea.max_deflection_mm} mm`;
+    const ktEl = document.getElementById('feaKt');
+    if (ktEl) ktEl.innerText = fea.stress_concentration_kt || '1.0';
+    const massEl = document.getElementById('feaMass');
+    if (massEl) massEl.innerText = `${fea.mass_kg} kg`;
+    
+    const fosEl = document.getElementById('feaFoS');
+    if (fosEl) {
+      fosEl.innerText = `${fea.factor_of_safety} (${fea.status})`;
+      fosEl.style.color = fea.status_color || '#10b981';
+    }
+
+    const recEl = document.getElementById('feaRecommendation');
+    if (recEl) recEl.innerText = fea.recommendation || '';
+
+    const img = document.getElementById('feaPlotImg');
+    const placeholder = document.getElementById('feaPlotPlaceholder');
+    const pUrl = plotUrl || (this.currentProject && this.currentVersion ? `/api/projects/${this.currentProject.project_id}/versions/${this.currentVersion.version_label}/files/fea_stress_plot.png` : null);
+    if (img && placeholder) {
+      if (pUrl) {
+        img.src = `${pUrl}?t=${Date.now()}`;
+        img.style.display = 'block';
+        placeholder.style.display = 'none';
+      } else {
+        img.style.display = 'none';
+        placeholder.style.display = 'block';
+      }
+    }
+  }
+
+  async runCustomFEA() {
+    if (!this.currentProject || !this.currentVersion) {
+      alert('Please generate or select a CAD model first.');
+      return;
+    }
+
+    const btn = document.getElementById('btnRunFEA');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = 'Simulating FEA...';
+    }
+
+    const mat = document.getElementById('feaMaterialSelect').value;
+    const loadN = parseFloat(document.getElementById('feaLoadInput').value) || 1000.0;
+    const boundary = document.getElementById('feaBoundarySelect').value;
+
+    try {
+      const res = await fetch(`/api/projects/${this.currentProject.project_id}/versions/${this.currentVersion.version_label}/fea`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          material: mat,
+          load_n: loadN,
+          fixed_boundary: boundary,
+          load_direction: [0, 0, -1]
+        })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        this.currentVersion.fea_result = data.fea;
+        this.currentVersion.fea_plot_url = data.plot_url;
+        this.populateFEA(data.fea, data.plot_url);
+      } else {
+        const err = await res.text();
+        alert(`FEA simulation error: ${err}`);
+      }
+    } catch (e) {
+      console.error('FEA error:', e);
+      alert(`FEA error: ${e.message}`);
+    } finally {
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+          <span>Run FEA Simulation</span>
+        `;
+      }
+    }
   }
 
   /* -------------------------------------------------------------------------

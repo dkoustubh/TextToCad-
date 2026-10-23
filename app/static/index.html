@@ -322,6 +322,7 @@
           <button class="tab-btn" data-tab="geometry">Geometry</button>
           <button class="tab-btn" data-tab="features">Features</button>
           <button class="tab-btn" data-tab="validation">Validation</button>
+          <button class="tab-btn" data-tab="fea">FEA Stress</button>
         </div>
 
         <div class="sidebar-content">
@@ -471,6 +472,78 @@
               <div class="section-title">Validation Log</div>
               <div id="valAuditMessage" style="font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); background: var(--bg-card); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); line-height: 1.4;">
                 Awaiting validation audit...
+              </div>
+            </div>
+          </div>
+
+          <!-- TAB 5: FEA STRESS ANALYSIS -->
+          <div class="tab-content" id="tab-fea">
+            <div class="panel-section">
+              <div class="section-title">FEA Parameters</div>
+              <div style="display: flex; flex-direction: column; gap: 8px;">
+                <div>
+                  <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Material</label>
+                  <select id="feaMaterialSelect" style="width: 100%; padding: 6px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px; font-size: 11px;">
+                    <option value="structural_steel">Structural Steel (A36 / S275)</option>
+                    <option value="aluminum_6061_t6">Aluminum 6061-T6</option>
+                    <option value="aluminum_7075_t6">Aerospace Aluminum 7075-T6</option>
+                    <option value="titanium_ti6al4v">Titanium Ti-6Al-4V</option>
+                    <option value="stainless_steel_304">Stainless Steel 304</option>
+                    <option value="brass_c36000">Free-Cutting Brass</option>
+                    <option value="pla_plastic">PLA 3D Printing Plastic</option>
+                    <option value="abs_plastic">ABS 3D Printing Plastic</option>
+                  </select>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                  <div style="flex: 1;">
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Load Force (N)</label>
+                    <input type="number" id="feaLoadInput" value="1000" min="1" step="50" style="width: 100%; padding: 6px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px; font-size: 11px;" />
+                  </div>
+                  <div style="flex: 1;">
+                    <label style="font-size: 11px; color: var(--text-muted); display: block; margin-bottom: 4px;">Boundary</label>
+                    <select id="feaBoundarySelect" style="width: 100%; padding: 6px; background: var(--bg-card); color: var(--text-main); border: 1px solid var(--border-color); border-radius: 4px; font-size: 11px;">
+                      <option value="base">Fixed Base</option>
+                      <option value="cantilever">Cantilever</option>
+                      <option value="holes">Mounting Holes</option>
+                    </select>
+                  </div>
+                </div>
+                <button id="btnRunFEA" class="btn-primary" style="margin-top: 4px; padding: 7px; font-size: 11px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+                  <span>Run FEA Simulation</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="panel-section">
+              <div class="section-title">Structural Stress & Safety</div>
+              <table class="prop-table">
+                <tbody>
+                  <tr><td class="prop-label">Max Von Mises</td><td class="prop-val" id="feaMaxStress">-- MPa</td></tr>
+                  <tr><td class="prop-label">Yield Strength</td><td class="prop-val" id="feaYieldStrength">-- MPa</td></tr>
+                  <tr><td class="prop-label">Max Deflection</td><td class="prop-val" id="feaMaxDeflection">-- mm</td></tr>
+                  <tr><td class="prop-label">Stress Conc. (Kt)</td><td class="prop-val" id="feaKt">--</td></tr>
+                  <tr><td class="prop-label">Calculated Mass</td><td class="prop-val" id="feaMass">-- kg</td></tr>
+                  <tr>
+                    <td class="prop-label">Factor of Safety</td>
+                    <td class="prop-val" id="feaFoS" style="font-weight: bold; color: var(--accent-green);">--</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="panel-section">
+              <div class="section-title">Engineering Verdict</div>
+              <div id="feaRecommendation" style="font-size: 11px; color: var(--text-muted); background: var(--bg-card); padding: 8px; border-radius: 4px; border: 1px solid var(--border-color); line-height: 1.4;">
+                Awaiting structural FEA analysis...
+              </div>
+            </div>
+
+            <div class="panel-section">
+              <div class="section-title">Stress Contour Plot</div>
+              <div id="feaPlotContainer" style="background: #0f172a; border-radius: 4px; overflow: hidden; border: 1px solid var(--border-color); text-align: center;">
+                <img id="feaPlotImg" src="" alt="FEA Stress Heatmap" style="max-width: 100%; height: auto; display: none;" />
+                <div id="feaPlotPlaceholder" style="padding: 24px; color: #64748b; font-size: 11px;">Run FEA to generate 2D stress heatmap</div>
               </div>
             </div>
           </div>

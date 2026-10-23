@@ -148,6 +148,36 @@ class ProjectManager:
 
         base_file_url = f"/api/projects/{project_id}/versions/{v_label}/files"
 
+        # Compute baseline FEA analysis and generate stress plot
+        from app.fea_engine import FEAEngine
+        fea_plot_file = os.path.join(v_dir, "fea_stress_plot.png")
+        
+        l_val = getattr(plan, "length_mm", 100.0) or 100.0
+        w_val = getattr(plan, "width_mm", 50.0) or 50.0
+        h_val = getattr(plan, "height_mm", 10.0) or 10.0
+        if validation and validation.bounding_box:
+            l_val = validation.bounding_box.size_x or l_val
+            w_val = validation.bounding_box.size_y or w_val
+            h_val = validation.bounding_box.size_z or h_val
+        vol_val = validation.volume_mm3 if validation else (l_val * w_val * h_val)
+        holes_val = [h.model_dump() for h in plan.holes] if (plan and getattr(plan, "holes", None)) else []
+
+        fea_data = FEAEngine.run_analysis(
+            length_mm=l_val,
+            width_mm=w_val,
+            height_mm=h_val,
+            volume_mm3=vol_val,
+            load_n=1000.0,
+            material_id="structural_steel",
+            holes=holes_val,
+            output_plot_path=fea_plot_file
+        )
+
+        with open(os.path.join(v_dir, "fea_report.json"), "w", encoding="utf-8") as f:
+            f.write(json.dumps(fea_data, indent=2))
+
+        fea_plot_url = f"{base_file_url}/fea_stress_plot.png" if os.path.exists(fea_plot_file) else None
+
         v_info = VersionInfo(
             version_id=v_id,
             version_num=next_v_num,
@@ -164,6 +194,8 @@ class ProjectManager:
             ipt_url=f"{base_file_url}/{project_id}_{v_label}.ipt",
             iam_url=f"{base_file_url}/{project_id}_{v_label}.iam",
             view_url=f"/?project={project_id}&version={v_label}",
+            fea_result=fea_data,
+            fea_plot_url=fea_plot_url,
             plan=plan,
             validation=validation,
             duration_ms=duration_ms

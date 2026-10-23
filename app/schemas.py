@@ -102,6 +102,8 @@ class ChatResponse(BaseModel):
     ipt_url: Optional[str] = None
     iam_url: Optional[str] = None
     view_url: Optional[str] = None
+    fea_result: Optional[Dict[str, Any]] = None
+    fea_plot_url: Optional[str] = None
 
 class VersionInfo(BaseModel):
     version_id: str
@@ -119,6 +121,8 @@ class VersionInfo(BaseModel):
     ipt_url: Optional[str] = None
     iam_url: Optional[str] = None
     view_url: Optional[str] = None
+    fea_result: Optional[Dict[str, Any]] = None
+    fea_plot_url: Optional[str] = None
     plan: Optional[CADPlan] = None
     validation: Optional[CADValidationReport] = None
     duration_ms: float = 0.0
@@ -145,5 +149,18 @@ class InventorDispatchResponse(BaseModel):
     workstation_ip: str
     inventor_version: Optional[str] = None
     open_documents_count: int = 0
+
+class FEARequest(BaseModel):
+    material: str = Field(default="structural_steel", description="Material ID (structural_steel, aluminum_6061_t6, etc.)")
+    load_n: float = Field(default=1000.0, description="Applied engineering load in Newtons")
+    load_direction: List[float] = Field(default=[0.0, 0.0, -1.0], description="Unit vector of load direction")
+    fixed_boundary: str = Field(default="base", description="Boundary support constraint ('base', 'cantilever', 'holes')")
+
+class FEAResponse(BaseModel):
+    success: bool
+    project_id: str
+    version_label: str
+    fea: Dict[str, Any]
+    plot_url: Optional[str] = None
 
 
