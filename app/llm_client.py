@@ -135,7 +135,7 @@ class ParametricModifier:
                 code = re.sub(r"(Box\s*\(\s*[^,]+,\s*[^,]+,\s*)\d+(?:\.\d+)?", rf"\g<1>{val}", code)
 
         # 5. Check for cylinder diameter / radius
-        if ("diameter" in p or "radius" in p) and nums and "hole" not in p:
+        if ("diameter" in p or "radius" in p) and nums and "hole" not in p and "drill" not in p and "bore" not in p and ("cylinder" in p or "rod" in p or "shaft" in p):
             val = nums[0]
             r = val / 2.0 if ("diameter" in p or "dia" in p) else val
             params["radius_mm"] = r
@@ -143,42 +143,70 @@ class ParametricModifier:
             code = re.sub(r"radius\s*=\s*\d+(?:\.\d+)?", f"radius={r}", code)
             code = re.sub(r"Cylinder\s*\(\s*\d+(?:\.\d+)?", f"Cylinder({r}", code)
 
-        # 6. Check for hole additions or diameter modifications
-        if "hole" in p and nums:
-            hole_dia = nums[0]
+        # 6. Check for hole / drill additions or diameter modifications
+        if ("hole" in p or "drill" in p or "bore" in p) and nums:
+            count_match = re.search(r"\b(\d+)\s*(?:drills?|holes?|bores?)\b", p)
+            if count_match:
+                hole_count = int(count_match.group(1))
+                dia_match = re.search(r"(?:dia|diameter|of|size)\s*(?:of\s*)?(\d+(?:\.\d+)?)", p)
+                if dia_match:
+                    hole_dia = float(dia_match.group(1))
+                else:
+                    remaining = [n for n in nums if n != hole_count]
+                    hole_dia = remaining[0] if remaining else 8.0
+            else:
+                hole_dia = nums[0]
+
             hole_radius = hole_dia / 2.0
             params["hole_diameter_mm"] = hole_dia
 
             # Check if this is an update to an existing hole
-            is_update = ("increase" in p or "change" in p or "reduce" in p or "modify" in p or "set" in p) and ("Circle" in code)
+            is_update = ("increase" in p or "change" in p or "reduce" in p or "modify" in p or "set" in p) and ("Circle" in code) and not ("add" in p or "insert" in p or "drill" in p)
             if is_update:
                 code = re.sub(r"Circle\s*\(\s*radius\s*=\s*\d+(?:\.\d+)?\s*\)", f"Circle(radius={hole_radius})", code)
                 code = re.sub(r"bd\.Circle\s*\(\s*radius\s*=\s*\d+(?:\.\d+)?\s*\)", f"bd.Circle(radius={hole_radius})", code)
                 code = re.sub(r"hole_radius\s*=\s*\d+(?:\.\d+)?", f"hole_radius = {hole_radius}", code)
                 code = re.sub(r"hole_r\s*=\s*\d+(?:\.\d+)?", f"hole_r = {hole_radius}", code)
             else:
-                # Add new hole feature
-                if "four" in p or "4" in p or "corner" in p:
-                    l_match = re.search(r"length\s*=\s*(\d+(?:\.\d+)?)", code) or re.search(r"Box\s*\(\s*(\d+(?:\.\d+)?)\s*,", code)
-                    w_match = re.search(r"width\s*=\s*(\d+(?:\.\d+)?)", code) or re.search(r"Box\s*\([^,]+,\s*(\d+(?:\.\d+)?)\s*,", code)
-                    l_val = float(l_match.group(1)) if l_match else 100.0
-                    w_val = float(w_match.group(1)) if w_match else 60.0
-                    hx = max(10.0, (l_val / 2.0) - 15.0)
-                    hy = max(10.0, (w_val / 2.0) - 12.0)
+                # Add new hole/drill feature
+                l_match = re.search(r"(?:length|leg1)\s*=\s*(\d+(?:\.\d+)?)", code) or re.search(r"Box\s*\(\s*(\d+(?:\.\d+)?)\s*,", code)
+                w_match = re.search(r"width\s*=\s*(\d+(?:\.\d+)?)", code) or re.search(r"Box\s*\([^,]+,\s*(\d+(?:\.\d+)?)\s*,", code)
+                l_val = float(l_match.group(1)) if l_match else 100.0
+                w_val = float(w_match.group(1)) if w_match else 60.0
+                is_l_mount = "leg1" in code or "leg2" in code
+                cx = (l_val / 2.0) if is_l_mount else 0.0
+
+                is_4 = (count_match and hole_count == 4) or (bool(re.search(r"\b(?:4|four)\b", p)) and not bool(re.search(r"\b(?:4|four)\s*(?:mm|cm|in|m)\b", p))) or "corner" in p
+                is_2 = (count_match and hole_count == 2) or (bool(re.search(r"\b(?:2|two)\b", p)) and not bool(re.search(r"\b(?:2|two)\s*(?:mm|cm|in|m)\b", p)))
+
+                if is_4:
+                    dx = (l_val * 0.25) if is_l_mount else max(10.0, (l_val / 2.0) - 15.0)
+                    dy = max(10.0, (w_val / 2.0) - 12.0)
                     params["hole_count"] = 4
                     hole_snippet = f"""
-    # Feature: 4 Corner Through Holes (Ø{hole_dia} mm)
+    # Feature: 4 Drilled Holes (Ø{hole_dia} mm)
     with bd.BuildSketch(bd.Plane.XY):
-        with bd.Locations([({hx}, {hy}), ({hx}, -{hy}), (-{hx}, {hy}), (-{hx}, -{hy})]):
+        with bd.Locations([({cx + dx}, {dy}), ({cx + dx}, -{dy}), ({cx - dx}, {dy}), ({cx - dx}, -{dy})]):
+            bd.Circle(radius={hole_radius})
+    bd.extrude(amount=200.0, both=True, mode=bd.Mode.SUBTRACT)
+"""
+                elif is_2:
+                    dx = (l_val * 0.25) if is_l_mount else max(15.0, (l_val / 2.0) - 20.0)
+                    params["hole_count"] = 2
+                    hole_snippet = f"""
+    # Feature: 2 Drilled Holes (Ø{hole_dia} mm)
+    with bd.BuildSketch(bd.Plane.XY):
+        with bd.Locations([({cx + dx}, 0), ({cx - dx}, 0)]):
             bd.Circle(radius={hole_radius})
     bd.extrude(amount=200.0, both=True, mode=bd.Mode.SUBTRACT)
 """
                 else:
                     params["hole_count"] = 1
                     hole_snippet = f"""
-    # Feature: Center Through Hole (Ø{hole_dia} mm)
+    # Feature: Center Drilled Hole (Ø{hole_dia} mm)
     with bd.BuildSketch(bd.Plane.XY):
-        bd.Circle(radius={hole_radius})
+        with bd.Locations([({cx}, 0)]):
+            bd.Circle(radius={hole_radius})
     bd.extrude(amount=200.0, both=True, mode=bd.Mode.SUBTRACT)
 """
                 if "model =" in code:
@@ -878,7 +906,7 @@ model = part.part
             return code, plan
 
         # 9. Heavy-Duty L-Bracket with Gusset Stiffener
-        if "l bracket" in p or "l-bracket" in p or "angle bracket" in p or "gusset" in p:
+        if "l bracket" in p or "l-bracket" in p or "angle bracket" in p or "l mount" in p or "l-mount" in p or "angle mount" in p or "gusset" in p:
             leg1 = float(all_nums[0]) if len(all_nums) > 0 else 80.0
             leg2 = float(all_nums[1]) if len(all_nums) > 1 else (leg1 if len(all_nums) == 1 else 80.0)
             width = float(all_nums[2]) if len(all_nums) > 2 else 50.0
