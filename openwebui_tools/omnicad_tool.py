@@ -111,7 +111,7 @@ class Tools:
                             "done": True,
                         },
                     })
-                return f"### ❌ OmniCAD Generation Failed\n\n**Backend Error (HTTP {response.status_code}):**\n```\n{error_text}\n```"
+                return f"### [ERROR] OmniCAD Generation Failed\n\n**Backend Error (HTTP {response.status_code}):**\n```\n{error_text}\n```"
 
             data = response.json()
 
@@ -125,7 +125,7 @@ class Tools:
                     },
                 })
             return (
-                f"### ❌ Unable to connect to OmniCAD Backend at `{backend_url}`\n\n"
+                f"### [ERROR] Unable to connect to OmniCAD Backend at `{backend_url}`\n\n"
                 f"**Error Details:** `{str(e)}`\n\n"
                 f"Please verify that the Text-to-CAD server is running at `{backend_url}`."
             )
@@ -168,11 +168,11 @@ class Tools:
                 inv_res = requests.post(inv_endpoint, json=inv_payload, timeout=25)
                 if inv_res.status_code == 200:
                     inv_data = inv_res.json()
-                    inventor_sync_msg = f"✅ **Synchronized & Live in Autodesk Inventor**\n- **Target Machine:** `{workstation_ip}`\n- **Document Type:** `{inv_data.get('file_type', 'Part')}`\n- **Workstation Path:** `{inv_data.get('file_path', 'Saved')}`\n- **Inventor Version:** `{inv_data.get('inventor_version', 'Connected')}`"
+                    inventor_sync_msg = f"**Status: Synchronized & Live in Autodesk Inventor**\n- **Target Machine:** `{workstation_ip}`\n- **Document Type:** `{inv_data.get('file_type', 'Part')}`\n- **Workstation Path:** `{inv_data.get('file_path', 'Saved')}`\n- **Inventor Version:** `{inv_data.get('inventor_version', 'Connected')}`"
                 else:
-                    inventor_sync_msg = f"⚠️ **Workstation sync returned HTTP {inv_res.status_code}:** {inv_res.text}"
+                    inventor_sync_msg = f"**Warning: Workstation sync returned HTTP {inv_res.status_code}:** {inv_res.text}"
             except Exception as e:
-                inventor_sync_msg = f"ℹ️ *Workstation agent unreachable at {workstation_ip}:{workstation_port} ({str(e)}). File is available for local download below.*"
+                inventor_sync_msg = f"*Workstation agent unreachable at {workstation_ip}:{workstation_port} ({str(e)}). File is available for local download below.*"
 
         if __event_emitter__:
             await __event_emitter__({
@@ -209,7 +209,7 @@ class Tools:
             fea_section = f"""
 ---
 
-#### 🧮 Fast FEA Structural Stress Analysis (1,000 N Test Load)
+#### Fast FEA Structural Stress Analysis (1,000 N Test Load)
 | FEA Metric | Value |
 | :--- | :--- |
 | **Material** | `{fea_mat.get('name', 'Structural Steel')}` |
@@ -220,33 +220,33 @@ class Tools:
 | **Factor of Safety (FoS)** | **`{fea_result.get('factor_of_safety', '--')} ({fea_result.get('status', 'SAFE')})`** |
 | **Engineering Verdict** | {fea_result.get('recommendation', 'Safe for standard static operation.')} |
 
-📊 **[Click to View FEA Stress Contour Heatmap Plot]({fea_plot_url})**
+**[View FEA Stress Contour Heatmap Plot]({fea_plot_url})**
 """
 
         # Build clean engineering response
-        report = f"""### 🛠️ OmniCAD Design Generated: `{p_id}` ({v_label})
+        report = f"""### OmniCAD Design Generated: `{p_id}` ({v_label})
 
 **Design Summary:** {explanation}
 
 ---
 
-#### 🌐 3D Interactive View
-👉 **[Click here to Open Design in OmniCAD 3D Viewport]({view_url})**
+#### 3D Interactive View
+**[Open Design in OmniCAD 3D Viewport]({view_url})**
 *(Opens the interactive 3D WebGL inspector at `{view_url}` with orbit, pan, section analysis, and edge rendering)*
 
 ---
 
-#### 📥 Download CAD & Native Inventor Files
-- 📦 **[Download Native Autodesk Inventor Part (.ipt)]({ipt_url})**
-- 🏗️ **[Download Native Autodesk Inventor Assembly (.iam)]({iam_url})**
-- 📐 **[Download ISO 10303 Standard CAD Model (.step)]({step_url})**
-- 🖨️ **[Download 3D Printing Mesh (.stl)]({stl_url})**
-- 🌐 **[Download WebGL 3D Asset (.glb)]({glb_url})**
-- 🐍 **[Download Parametric build123d Script (.py)]({py_url})**
+#### Download CAD & Native Inventor Files
+- **[Download Native Autodesk Inventor Part (.ipt)]({ipt_url})**
+- **[Download Native Autodesk Inventor Assembly (.iam)]({iam_url})**
+- **[Download ISO 10303 Standard CAD Model (.step)]({step_url})**
+- **[Download 3D Printing Mesh (.stl)]({stl_url})**
+- **[Download WebGL 3D Asset (.glb)]({glb_url})**
+- **[Download Parametric build123d Script (.py)]({py_url})**
 
 ---
 
-#### 🔬 Physical & Geometric Properties
+#### Physical & Geometric Properties
 | Property | Value |
 | :--- | :--- |
 | **Shape Type** | `{shape_type}` |
@@ -254,15 +254,15 @@ class Tools:
 | **Total Volume** | `{volume_mm3:,.1f} mm³` |
 | **Surface Area** | `{area_mm2:,.1f} mm²` |
 | **Topology (F / E / V)** | `{validation.get('face_count', '--')} faces` / `{validation.get('edge_count', '--')} edges` / `{validation.get('vertex_count', '--')} vertices` |
-| **Solid Verification** | `{'✅ Valid Closed Manifold Solid' if validation.get('is_valid') else '⚠️ Unverified'}` |
+| **Solid Verification** | `{'Valid Closed Manifold Solid' if validation.get('is_valid') else 'Unverified'}` |
 | **Generation Latency** | `{duration_ms} ms` |
 
-#### ⚙️ Feature Specifications
+#### Feature Specifications
 {holes_desc}
 {fea_section}
 ---
 
-#### 🖥️ Autodesk Inventor Workstation Status
+#### Autodesk Inventor Workstation Status
 {inventor_sync_msg}
 """
         return report
@@ -325,7 +325,7 @@ class Tools:
             res = requests.post(endpoint, json=payload, timeout=20)
             if res.status_code != 200:
                 err_text = res.text
-                return f"### ❌ FEA Simulation Failed (HTTP {res.status_code})\n\n```\n{err_text}\n```"
+                return f"### [ERROR] FEA Simulation Failed (HTTP {res.status_code})\n\n```\n{err_text}\n```"
 
             data = res.json()
             fea = data.get("fea", {})
@@ -341,13 +341,13 @@ class Tools:
                     },
                 })
 
-            return f"""### 🧮 OmniCAD FEA Structural Report: `{p_id}` ({v_label})
+            return f"""### OmniCAD FEA Structural Report: `{p_id}` ({v_label})
 
 **Applied Load:** `{fea.get('load_n', load_n):,.0f} N` | **Boundary Condition:** `{fixed_boundary.capitalize()}`
 
 ---
 
-#### 🔬 Stress & Safety Factor Summary
+#### Stress & Safety Factor Summary
 | Parameter | Value | Reference Standard |
 | :--- | :--- | :--- |
 | **Material** | `{mat_info.get('name', material)}` | Category: `{mat_info.get('category', 'Metal')}` |
@@ -361,19 +361,19 @@ class Tools:
 
 ---
 
-#### 📋 Engineering Evaluation
+#### Engineering Evaluation
 > **Verdict:** **{fea.get('status')}**
 > 
 > {fea.get('recommendation')}
 
 ---
 
-#### 📊 2D Stress Contour Plot
-👉 **[View High-Resolution FEA Stress Contour Heatmap]({plot_url})**
+#### 2D Stress Contour Plot
+**[View High-Resolution FEA Stress Contour Heatmap]({plot_url})**
 """
 
         except Exception as e:
-            return f"### ❌ Error communicating with FEA engine: `{str(e)}`"
+            return f"### [ERROR] Error communicating with FEA engine: `{str(e)}`"
 
     async def check_omnicad_health(
         self,
@@ -389,8 +389,8 @@ class Tools:
         workstation_ip = self.valves.WORKSTATION_IP.strip()
         workstation_port = self.valves.WORKSTATION_PORT
 
-        backend_status = "🔴 Offline"
-        workstation_status = "🔴 Offline"
+        backend_status = "Offline"
+        workstation_status = "Offline"
         inventor_app_status = "Not Connected"
 
         # Check backend
@@ -398,9 +398,9 @@ class Tools:
             res = requests.get(f"{backend_url}/health", timeout=5)
             if res.status_code == 200:
                 b_data = res.json()
-                backend_status = f"🟢 Online (v{b_data.get('version', '1.0.0')})"
+                backend_status = f"Online (v{b_data.get('version', '1.0.0')})"
         except Exception as e:
-            backend_status = f"🔴 Offline ({str(e)})"
+            backend_status = f"Offline ({str(e)})"
 
         # Check workstation
         try:
@@ -409,12 +409,12 @@ class Tools:
                 w_data = w_res.json()
                 inv_conn = w_data.get("inventor_connected", False)
                 inv_ver = w_data.get("inventor_version", "Unknown")
-                workstation_status = "🟢 Online"
-                inventor_app_status = f"🟢 Connected ({inv_ver})" if inv_conn else "🟡 Agent Online, Inventor Closed"
+                workstation_status = "Online"
+                inventor_app_status = f"Connected ({inv_ver})" if inv_conn else "Agent Online, Inventor Closed"
         except Exception as e:
-            workstation_status = f"🔴 Unreachable ({str(e)})"
+            workstation_status = f"Unreachable ({str(e)})"
 
-        return f"""### 🩺 OmniCAD System Health Diagnostics
+        return f"""### OmniCAD System Health Diagnostics
 
 | Component | Target Address | Status | Notes |
 | :--- | :--- | :--- | :--- |

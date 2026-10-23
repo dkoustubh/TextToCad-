@@ -1382,7 +1382,7 @@ class CADWorkbench {
     toast.innerHTML = `
       <div class="toast-header">
         <span>${title}</span>
-        <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;" onclick="this.closest('.toast').remove()">✕</button>
+        <button style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:12px;" onclick="this.closest('.toast').remove()">&times;</button>
       </div>
       <div class="toast-body">${message}</div>
     `;
@@ -1413,7 +1413,7 @@ class CADWorkbench {
             text.innerText = data.inventor_connected ? `Inventor Active (${targetIp})` : `Agent Ready (${targetIp})`;
           }
           if (sideText) {
-            sideText.innerText = data.inventor_connected ? `✓ Inventor Connected on ${targetIp}` : `Agent Online (Inventor idle) on ${targetIp}`;
+            sideText.innerText = data.inventor_connected ? `Inventor Connected on ${targetIp}` : `Agent Online (Inventor idle) on ${targetIp}`;
             sideText.style.color = data.inventor_connected ? 'var(--accent-green)' : '#f59e0b';
           }
           if (showAlert) {
@@ -1462,7 +1462,7 @@ class CADWorkbench {
 
       const data = await res.json();
       if (data.success) {
-        this.showToast('✓ Opened in Autodesk Inventor', `${data.message}\nSaved: ${data.file_path || typeLabel}`, 'success');
+        this.showToast('Opened in Autodesk Inventor', `${data.message}\nSaved: ${data.file_path || typeLabel}`, 'success');
         this.checkInventorStatus();
       } else {
         this.showToast('Inventor Dispatch Notice', data.message || 'Could not open in Inventor', 'error');

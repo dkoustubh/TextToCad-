@@ -276,7 +276,7 @@ async def generate_project_version(project_id: str, req: ChatRequest):
             },
             job_id=job_id,
             workstation_ip=workstation,
-            message=f"✓ Solid CAD Model Verified & Generated ({res.plan.explanation or res.prompt}){inv_msg_suffix}",
+            message=f"Solid CAD Model Verified & Generated ({res.plan.explanation or res.prompt}){inv_msg_suffix}",
             project_id=project_id,
             version_id=v_info.version_id,
             version_num=v_info.version_num,

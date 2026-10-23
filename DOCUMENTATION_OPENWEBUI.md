@@ -37,7 +37,7 @@ OpenWebUI automatically detects the `Valves` model from the code. You can config
 ## 3. How to Use in OpenWebUI Chat
 
 1. In OpenWebUI, open any chat.
-2. Under the prompt box, click the **Tools icon (🛠️)** and toggle **OmniCAD ON**.
+2. Under the prompt box, click the **Tools** icon and toggle **OmniCAD ON**.
 3. Type any mechanical engineering design request, for example:
    > *"Create a mounting bracket 120 mm length, 80 mm width, 15 mm thickness with four 8 mm corner mounting holes and a 30 mm center hole."*
    >
@@ -48,13 +48,13 @@ OpenWebUI automatically detects the `Valves` model from the code. You can config
    > *"Check OmniCAD system health and Inventor connectivity."*
 
 4. OmniCAD will generate the geometry and respond with:
-   - **🌐 3D Interactive View Link:** `http://192.168.11.86:9999/?project=proj_openwebui&version=v001` (Opens directly into the 3D WebGL viewer).
-   - **📦 Download Native Autodesk Inventor Part (`.ipt`)**
-   - **🏗️ Download Native Autodesk Inventor Assembly (`.iam`)**
-   - **📐 Download ISO STEP (`.step`)**
-   - **🖨️ Download Mesh (`.stl`)**
-   - **🌐 Download WebGL (`.glb`)**
-   - **🐍 Download build123d Script (`.py`)**
-   - **🔬 Physical Properties Table:** Volume, surface area, bounding box, face/edge counts.
-   - **🧮 Fast FEA Structural Stress Analysis:** Von Mises stress ($\sigma_{vM}$), peak deflection, mass, Factor of Safety ($FoS$), safety verdict, and 2D stress contour heatmap link (`fea_stress_plot.png`).
-   - **🖥️ Autodesk Inventor Status:** Confirmation that the model was opened and saved in Inventor on `192.168.11.150`.
+   - **3D Interactive View Link:** `http://192.168.11.86:9999/?project=proj_openwebui&version=v001` (Opens directly into the 3D WebGL viewer).
+   - **Download Native Autodesk Inventor Part (`.ipt`)**
+   - **Download Native Autodesk Inventor Assembly (`.iam`)**
+   - **Download ISO STEP (`.step`)**
+   - **Download Mesh (`.stl`)**
+   - **Download WebGL (`.glb`)**
+   - **Download build123d Script (`.py`)**
+   - **Physical Properties Table:** Volume, surface area, bounding box, face/edge counts.
+   - **Fast FEA Structural Stress Analysis:** Von Mises stress ($\sigma_{vM}$), peak deflection, mass, Factor of Safety ($FoS$), safety verdict, and 2D stress contour heatmap link (`fea_stress_plot.png`).
+   - **Autodesk Inventor Status:** Confirmation that the model was opened and saved in Inventor on `192.168.11.150`.
